@@ -1,0 +1,5 @@
+{
+  "logConnection": true,
+  "runtimeSeconds": 30,
+  "logRawMqtt": true
+}

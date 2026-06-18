@@ -1,0 +1,14 @@
+{
+  "getPos": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": true
+  },
+  "getBatteryInfo": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": false,
+    "consoleParsed": true
+  }
+}

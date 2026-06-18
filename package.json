@@ -1,0 +1,26 @@
+{
+  "name": "node-ecovacs-js",
+  "version": "0.1.0",
+  "description": "Ecovacs Node.js library for the ecovacs cloud subsystem",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "ecovacs",
+    "deebot",
+    "goat",
+    "mqtt"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "mqtt": "^5.10.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}
