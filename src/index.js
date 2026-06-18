@@ -67,6 +67,16 @@ async function main() {
     }
   });
 
+  // Report topics without parsers
+  const topicsWithoutParser = Object.entries(topics)
+    .filter(([_, config]) => config.hasParser === false)
+    .map(([topicName]) => topicName)
+    .sort();
+
+  if (topicsWithoutParser.length > 0) {
+    logger.info(`Topics without parser: ${topicsWithoutParser.join(", ")}`);
+  }
+
   let mqttClient = null;
 
   const mqttDevices = devices.mqtt.filter((d) => {
