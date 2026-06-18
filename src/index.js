@@ -15,7 +15,10 @@ function resolveRuntimeMs(runtimeSeconds) {
 
 async function main() {
   const { settings, credentials, topics } = await loadConfig();
-  const logger = createLogger({ enabled: settings.logConnection !== false });
+  const logger = createLogger({
+    enableLogging: settings.enableLogging !== false,
+    logConnection: settings.logConnection !== false
+  });
 
   logger.info("Starting node-ecovacs.js runtime");
 

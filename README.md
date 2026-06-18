@@ -49,7 +49,8 @@ npm start
 ## Runtime Flow
 
 [1] Use `settings.json` for global flags:
-- `logConnection` — enable/disable connection and MQTT log output
+- `enableLogging` — master switch for all logs
+- `logConnection` — only logs related to connection setup (cloud + MQTT)
 - `runtimeSeconds` (0 = forever, >0 = runtime in seconds)
 - `logRawMqtt` — log every raw MQTT frame before filtering
 - `deviceClasses` — whitelist of device class IDs to connect to (empty = all)
@@ -58,6 +59,7 @@ Example:
 
 ```json
 {
+  "enableLogging": true,
   "logConnection": true,
   "runtimeSeconds": 0,
   "logRawMqtt": false,

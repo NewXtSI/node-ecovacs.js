@@ -1,6 +1,15 @@
-export function createLogger({ enabled = true } = {}) {
+export function createLogger({ enableLogging = true, logConnection = true } = {}) {
   const log = (...args) => {
-    if (!enabled) {
+    if (!enableLogging) {
+      return;
+    }
+
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}]`, ...args);
+  };
+
+  const logConn = (...args) => {
+    if (!enableLogging || !logConnection) {
       return;
     }
 
@@ -11,6 +20,7 @@ export function createLogger({ enabled = true } = {}) {
   return {
     info: (...args) => log("INFO", ...args),
     warn: (...args) => log("WARN", ...args),
-    error: (...args) => log("ERROR", ...args)
+    error: (...args) => log("ERROR", ...args),
+    connection: (...args) => logConn("INFO", ...args)
   };
 }

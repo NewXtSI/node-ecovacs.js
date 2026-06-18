@@ -220,7 +220,7 @@ export class EcovacsCloudClient {
       return this.sessionCredentials;
     }
 
-    this.logger.info("Connecting to Ecovacs cloud", {
+    this.logger.connection("Connecting to Ecovacs cloud", {
       accountId: this.accountId,
       country: this.restConfig.country,
       portalUrl: this.restConfig.portalUrl

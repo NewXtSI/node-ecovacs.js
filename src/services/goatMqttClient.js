@@ -170,7 +170,7 @@ export class GoatMqttClient {
     const protocol = mqttConfig.protocol === "mqtts:" ? "mqtts" : "mqtt";
     const url = `${protocol}://${mqttConfig.host}:${mqttConfig.port}`;
 
-    this.logger.info("Connecting to MQTT broker", {
+    this.logger.connection("Connecting to MQTT broker", {
       host: mqttConfig.host,
       port: mqttConfig.port
     });
@@ -188,7 +188,7 @@ export class GoatMqttClient {
       this.client.once("error", reject);
     });
 
-    this.logger.info("MQTT connected");
+    this.logger.connection("MQTT connected");
 
     // Single central message handler — dispatches to matching subscriptions only
     this.client.on("message", (receivedTopic, payload) => {
