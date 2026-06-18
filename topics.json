@@ -114,16 +114,16 @@
     "consoleParsed": false
   },
   "getInfo": {
-    "enabled": false,
-    "consoleOut": false,
-    "consolePayload": false,
-    "consoleParsed": false
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": true
   },
   "getMI": {
-    "enabled": false,
+    "enabled": true,
     "consoleOut": false,
     "consolePayload": false,
-    "consoleParsed": false
+    "consoleParsed": true
   },
   "getCachedMapInfo": {
     "enabled": false,
@@ -156,16 +156,16 @@
     "consoleParsed": false
   },
   "onMI": {
-    "enabled": false,
+    "enabled": true,
     "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": false
   },
   "onArI": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
-    "consoleParsed": true
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
   },
   "getRelocationState": {
     "enabled": false,
@@ -174,10 +174,10 @@
     "consoleParsed": false
   },
   "getMapTrace": {
-    "enabled": false,
-    "consoleOut": false,
-    "consolePayload": false,
-    "consoleParsed": false
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": true
   },
   "getScheduleLatestTask": {
     "enabled": false,
@@ -210,22 +210,22 @@
     "consoleParsed": true
   },
   "getGnss": {
-    "enabled": false,
+    "enabled": true,
     "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": false
   },
   "onGnss": {
-    "enabled": false,
+    "enabled": true,
     "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": false
   },
   "getRTK": {
-    "enabled": false,
-    "consoleOut": false,
-    "consolePayload": false,
-    "consoleParsed": false
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": true
   },
   "getAreaParameter": {
     "enabled": false,

@@ -187,6 +187,25 @@ export class TopicCollector {
       return data || null;
     }
 
+    if (topicName === "getInfo") {
+      const data = parsedPayload?.body?.data;
+      if (!data || Object.keys(data).length === 0) {
+        return null;
+      }
+
+      const result = {};
+      for (const [nestedCommandName, nestedPayload] of Object.entries(data)) {
+        if (nestedCommandName.startsWith("get")) {
+          const nestedParsed = this.parseTopicPayload(nestedCommandName, { body: nestedPayload });
+          result[nestedCommandName] = nestedParsed !== null ? nestedParsed : nestedPayload;
+        } else {
+          result[nestedCommandName] = nestedPayload;
+        }
+      }
+
+      return result;
+    }
+
     return parsedPayload;
   }
 
