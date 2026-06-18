@@ -162,10 +162,10 @@
     "consoleParsed": false
   },
   "onArI": {
-    "enabled": false,
-    "consoleOut": false,
-    "consolePayload": false,
-    "consoleParsed": false
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": true
   },
   "getRelocationState": {
     "enabled": false,

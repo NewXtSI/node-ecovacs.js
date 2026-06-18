@@ -1,10 +1,16 @@
+import lzma from "lzma";
+
+const BINARY_TOPIC_TTL_MS = 10 * 60 * 1000;
+
 export class TopicCollector {
-  constructor({ topicsConfig, logger, logDiscovery = false, onDiscoverTopic = null }) {
+  constructor({ topicsConfig, logger, logDiscovery = false, logBinaryTopics = false, onDiscoverTopic = null }) {
     this.topicsConfig = topicsConfig;
     this.logger = logger;
     this.logDiscovery = logDiscovery;
+    this.logBinaryTopics = logBinaryTopics;
     this.onDiscoverTopic = onDiscoverTopic;
     this.discoveredTopics = new Set();
+    this.binaryTopicBuffers = new Map();
   }
 
   getTopicConfig(fullTopic) {
@@ -121,6 +127,11 @@ export class TopicCollector {
   }
 
   parseTopicPayload(topicName, parsedPayload) {
+    const binaryTopicPayload = this.parseBinaryTopicPayload(topicName, parsedPayload);
+    if (binaryTopicPayload !== undefined) {
+      return binaryTopicPayload;
+    }
+
     if (topicName === "getPos") {
       const data = parsedPayload?.body?.data;
       if (!data || Object.keys(data).length === 0) {
@@ -177,5 +188,235 @@ export class TopicCollector {
     }
 
     return parsedPayload;
+  }
+
+  parseBinaryTopicPayload(topicName, parsedPayload) {
+    const chunkData = parsedPayload?.body?.data;
+    if (!this.isBinaryTopicChunk(chunkData)) {
+      return undefined;
+    }
+
+    this.pruneBinaryTopicBuffers();
+
+    const bufferKey = this.getBinaryTopicBufferKey(topicName, chunkData);
+    const binaryTopicBuffer = this.binaryTopicBuffers.get(bufferKey) || {
+      expectedSize: 0,
+      expectedChunkCount: 0,
+      chunks: new Map(),
+      updatedAt: Date.now()
+    };
+
+    binaryTopicBuffer.expectedSize = Number(chunkData.infoSize) || 0;
+    binaryTopicBuffer.expectedChunkCount = Number(chunkData.serial) || 0;
+    binaryTopicBuffer.updatedAt = Date.now();
+    binaryTopicBuffer.chunks.set(Number(chunkData.index), String(chunkData.info));
+    this.binaryTopicBuffers.set(bufferKey, binaryTopicBuffer);
+
+    const progress = this.getBinaryTopicProgress(binaryTopicBuffer);
+    if (this.logBinaryTopics) {
+      this.logger.info("[BINARY TOPIC CHUNK]", {
+        topic: topicName,
+        serial: chunkData.serial,
+        batid: chunkData.batid || null,
+        chunkIndex: Number(chunkData.index),
+        expectedSize: binaryTopicBuffer.expectedSize,
+        expectedChunkCount: binaryTopicBuffer.expectedChunkCount,
+        ...progress
+      });
+    }
+
+    const assembledBase64 = this.assembleBinaryTopicBuffer(binaryTopicBuffer, progress);
+    if (assembledBase64 === null) {
+      return null;
+    }
+
+    this.binaryTopicBuffers.delete(bufferKey);
+
+    if (this.logBinaryTopics) {
+      this.logger.info("[BINARY TOPIC COMPLETE]", {
+        topic: topicName,
+        serial: chunkData.serial,
+        batid: chunkData.batid || null,
+        expectedSize: binaryTopicBuffer.expectedSize,
+        expectedChunkCount: binaryTopicBuffer.expectedChunkCount,
+        completionMode: progress.completeByChunkCount ? "chunks" : (progress.completeByBase64 ? "base64" : "bytes"),
+        ...progress
+      });
+    }
+
+    try {
+      const compressedBuffer = Buffer.from(assembledBase64, "base64");
+      return this.decodeBinaryTopicJson(compressedBuffer, binaryTopicBuffer.expectedSize);
+    } catch (error) {
+      this.logger.warn("Failed to decode binary topic payload", {
+        topic: topicName,
+        serial: chunkData.serial,
+        expectedSize: binaryTopicBuffer.expectedSize,
+        expectedChunkCount: binaryTopicBuffer.expectedChunkCount,
+        compressedByteLength: Buffer.from(assembledBase64, "base64").length,
+        lzmaHeaderHex: Buffer.from(assembledBase64, "base64").subarray(0, 13).toString("hex"),
+        error: error.message
+      });
+
+      return null;
+    }
+  }
+
+  decodeBinaryTopicJson(compressedBuffer, expectedSize) {
+    try {
+      return this.parseLzmaJsonBuffer(compressedBuffer);
+    } catch (primaryError) {
+      if (!this.shouldUseLegacy32BitLzmaHeader(compressedBuffer, expectedSize)) {
+        throw primaryError;
+      }
+
+      const patchedBuffer = this.patchLegacy32BitLzmaHeader(compressedBuffer);
+      return this.parseLzmaJsonBuffer(patchedBuffer);
+    }
+  }
+
+  parseLzmaJsonBuffer(compressedBuffer) {
+    const decompressedPayload = lzma.decompress(compressedBuffer);
+    const jsonText = typeof decompressedPayload === "string"
+      ? decompressedPayload
+      : Buffer.from(decompressedPayload).toString("utf8");
+
+    return JSON.parse(jsonText);
+  }
+
+  shouldUseLegacy32BitLzmaHeader(compressedBuffer, expectedSize) {
+    if (!Buffer.isBuffer(compressedBuffer) || compressedBuffer.length < 9) {
+      return false;
+    }
+
+    if (!Number.isFinite(expectedSize) || expectedSize <= 0) {
+      return false;
+    }
+
+    const lower32BitSize = compressedBuffer.readUInt32LE(5);
+    return lower32BitSize === expectedSize;
+  }
+
+  patchLegacy32BitLzmaHeader(compressedBuffer) {
+    return Buffer.concat([
+      compressedBuffer.subarray(0, 9),
+      Buffer.from([0, 0, 0, 0]),
+      compressedBuffer.subarray(9)
+    ]);
+  }
+
+  isBinaryTopicChunk(chunkData) {
+    return Boolean(
+      chunkData &&
+      typeof chunkData === "object" &&
+      chunkData.serial !== undefined &&
+      chunkData.index !== undefined &&
+      chunkData.infoSize !== undefined &&
+      typeof chunkData.info === "string"
+    );
+  }
+
+  getBinaryTopicBufferKey(topicName, chunkData) {
+    return [
+      topicName,
+      chunkData.batid || "",
+      chunkData.mid || "",
+      chunkData.type || ""
+    ].join(":");
+  }
+
+  getBinaryTopicProgress(binaryTopicBuffer) {
+    const orderedChunks = [...binaryTopicBuffer.chunks.entries()].sort((left, right) => left[0] - right[0]);
+    const chunkIndexes = orderedChunks.map(([chunkIndex]) => chunkIndex);
+    const chunkCount = orderedChunks.length;
+    const highestIndex = chunkCount === 0 ? -1 : orderedChunks[chunkCount - 1][0];
+
+    let contiguousChunks = 0;
+    let assembledBase64Length = 0;
+    let decodedByteLength = 0;
+
+    for (let expectedIndex = 0; expectedIndex < orderedChunks.length; expectedIndex += 1) {
+      const [chunkIndex, chunkValue] = orderedChunks[expectedIndex];
+      if (chunkIndex !== expectedIndex) {
+        break;
+      }
+
+      contiguousChunks += 1;
+      assembledBase64Length += chunkValue.length;
+      decodedByteLength = Buffer.from(orderedChunks.slice(0, contiguousChunks).map(([, value]) => value).join(""), "base64").length;
+    }
+
+    return {
+      chunkCount,
+      chunkIndexes,
+      highestIndex,
+      contiguousChunks,
+      assembledBase64Length,
+      decodedByteLength,
+      completeByChunkCount: Number.isFinite(binaryTopicBuffer.expectedChunkCount) && binaryTopicBuffer.expectedChunkCount > 0
+        ? contiguousChunks >= binaryTopicBuffer.expectedChunkCount
+        : false,
+      completeByBase64: assembledBase64Length >= binaryTopicBuffer.expectedSize,
+      completeByBytes: decodedByteLength >= binaryTopicBuffer.expectedSize
+    };
+  }
+
+  assembleBinaryTopicBuffer(binaryTopicBuffer, progress = null) {
+    if (!Number.isFinite(binaryTopicBuffer.expectedSize) || binaryTopicBuffer.expectedSize <= 0) {
+      return null;
+    }
+
+    const orderedChunks = [...binaryTopicBuffer.chunks.entries()].sort((left, right) => left[0] - right[0]);
+    if (orderedChunks.length === 0 || orderedChunks[0][0] !== 0) {
+      return null;
+    }
+
+    if (
+      Number.isFinite(binaryTopicBuffer.expectedChunkCount) &&
+      binaryTopicBuffer.expectedChunkCount > 0 &&
+      orderedChunks.length >= binaryTopicBuffer.expectedChunkCount &&
+      orderedChunks[binaryTopicBuffer.expectedChunkCount - 1]?.[0] === binaryTopicBuffer.expectedChunkCount - 1
+    ) {
+      return orderedChunks
+        .slice(0, binaryTopicBuffer.expectedChunkCount)
+        .map(([, chunkValue]) => chunkValue)
+        .join("");
+    }
+
+    let assembledBase64 = "";
+
+    for (let expectedIndex = 0; expectedIndex < orderedChunks.length; expectedIndex += 1) {
+      const [chunkIndex, chunkValue] = orderedChunks[expectedIndex];
+      if (chunkIndex !== expectedIndex) {
+        return null;
+      }
+
+      assembledBase64 += chunkValue;
+
+      const decodedByteLength = Buffer.from(assembledBase64, "base64").length;
+      if (assembledBase64.length >= binaryTopicBuffer.expectedSize) {
+        return assembledBase64.slice(0, binaryTopicBuffer.expectedSize);
+      }
+
+      if (decodedByteLength >= binaryTopicBuffer.expectedSize) {
+        return assembledBase64;
+      }
+    }
+
+    if (progress && (progress.completeByBase64 || progress.completeByBytes)) {
+      return assembledBase64;
+    }
+
+    return null;
+  }
+
+  pruneBinaryTopicBuffers() {
+    const expireBefore = Date.now() - BINARY_TOPIC_TTL_MS;
+
+    for (const [bufferKey, binaryTopicBuffer] of this.binaryTopicBuffers.entries()) {
+      if (binaryTopicBuffer.updatedAt < expireBefore) {
+        this.binaryTopicBuffers.delete(bufferKey);
+      }
+    }
   }
 }

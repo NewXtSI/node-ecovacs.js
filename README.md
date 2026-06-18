@@ -53,6 +53,7 @@ npm start
 - `logConnection` — only logs related to connection setup (cloud + MQTT)
 - `runtimeSeconds` (0 = forever, >0 = runtime in seconds)
 - `logRawMqtt` — log every raw MQTT frame before filtering
+- `logBinaryTopics` — emit chunk progress and LZMA decode diagnostics for binary blob topics
 - `deviceClasses` — whitelist of device class IDs to connect to (empty = all)
 
 Example:
@@ -63,6 +64,7 @@ Example:
   "logConnection": true,
   "runtimeSeconds": 0,
   "logRawMqtt": false,
+  "logBinaryTopics": false,
   "deviceClasses": ["2px96q"]
 }
 ```

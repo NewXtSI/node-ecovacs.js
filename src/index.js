@@ -49,6 +49,7 @@ async function main() {
     topicsConfig: topics,
     logger,
     logDiscovery: settings.logDiscovery !== false,
+    logBinaryTopics: settings.logBinaryTopics === true,
     onDiscoverTopic: async (topicName) => {
       topics[topicName] = {
         enabled: false,

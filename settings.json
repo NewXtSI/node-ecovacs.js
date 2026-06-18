@@ -4,5 +4,6 @@
   "runtimeSeconds": 120,
   "logRawMqtt": false,
   "logDiscovery": true,
+  "logBinaryTopics": false,
   "deviceClasses": ["2px96q"]
 }

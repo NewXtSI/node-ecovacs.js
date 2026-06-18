@@ -18,6 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "lzma": "^2.3.2",
     "mqtt": "^5.10.0"
   },
   "devDependencies": {
