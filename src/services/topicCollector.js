@@ -101,7 +101,7 @@ export class TopicCollector {
     if (topicConfig.consoleParsed && parsedPayload !== null) {
       const parsedInfo = this.parseTopicPayload(topicName, parsedPayload);
       if (parsedInfo !== null) {
-        this.logger.info("Parsed payload", parsedInfo);
+        this.logger.info(`Parsed ${topicName}`, parsedInfo);
       }
     }
   }
