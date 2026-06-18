@@ -1,8 +1,8 @@
 {
   "enableLogging": true,
   "logConnection": false,
-  "runtimeSeconds": 120,
-  "logRawMqtt": true,
+  "runtimeSeconds": 30,
+  "logRawMqtt": false,
   "logDiscovery": true,
   "deviceClasses": ["2px96q"]
 }

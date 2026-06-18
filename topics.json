@@ -1,8 +1,8 @@
 {
   "getPos": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
+    "consoleOut": false,
+    "consolePayload": false,
     "consoleParsed": true
   },
   "getBatteryInfo": {
@@ -12,10 +12,10 @@
     "consoleParsed": true
   },
   "getBattery": {
-    "enabled": false,
-    "consoleOut": false,
+    "enabled": true,
+    "consoleOut": true,
     "consolePayload": false,
-    "consoleParsed": false
+    "consoleParsed": true
   },
   "getCleanInfo": {
     "enabled": false,
@@ -36,6 +36,48 @@
     "consoleParsed": false
   },
   "getLifeSpan": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getSleep": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getTotalStats": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_sysinfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_power": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_batterytemp": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_reedvoltage": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_machine": {
     "enabled": false,
     "consoleOut": false,
     "consolePayload": false,

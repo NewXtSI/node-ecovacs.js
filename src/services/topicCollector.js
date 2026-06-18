@@ -116,6 +116,11 @@ export class TopicCollector {
       return data;
     }
 
+    if (topicName === "getBattery") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
     return parsedPayload;
   }
 }
