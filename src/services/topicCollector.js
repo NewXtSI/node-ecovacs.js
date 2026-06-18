@@ -35,9 +35,19 @@ export class TopicCollector {
       return null;
     }
 
-    // iot/atr/[command]/...
-    // iot/p2p/[command]/...
-    if (parts[0] === "iot" && (parts[1] === "atr" || parts[1] === "p2p")) {
+    // iot/atr/[command]/... — broadcast from device, always a response
+    if (parts[0] === "iot" && parts[1] === "atr") {
+      return parts[2];
+    }
+
+    // iot/p2p/[command]/[from]/[fromClass]/[fromRes]/[to]/[toClass]/[toRes]/[q|p]/[msgId]/j
+    // Only process 'p' (reply from device), skip 'q' (query sent to device)
+    if (parts[0] === "iot" && parts[1] === "p2p") {
+      const direction = parts[9];
+      if (direction !== "p") {
+        return null;
+      }
+
       return parts[2];
     }
 

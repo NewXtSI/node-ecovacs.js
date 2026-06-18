@@ -7,13 +7,13 @@
   },
   "getBatteryInfo": {
     "enabled": true,
-    "consoleOut": true,
+    "consoleOut": false,
     "consolePayload": true,
     "consoleParsed": true
   },
   "getBattery": {
     "enabled": true,
-    "consoleOut": true,
+    "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": true
   },
@@ -25,20 +25,20 @@
   },
   "getChargeState": {
     "enabled": true,
-    "consoleOut": true,
+    "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": true
   },
   "getNetInfo": {
     "enabled": true,
-    "consoleOut": true,
+    "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": true
   },
   "getLifeSpan": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
+    "consoleOut": false,
+    "consolePayload": false,
     "consoleParsed": true
   },
   "getSleep": {
