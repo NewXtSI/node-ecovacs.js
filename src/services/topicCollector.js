@@ -157,6 +157,16 @@ export class TopicCollector {
       );
     }
 
+    if (topicName === "getSleep") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getVolume" || topicName === "onVolume") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
     return parsedPayload;
   }
 }
