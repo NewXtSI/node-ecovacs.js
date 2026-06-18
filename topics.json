@@ -292,5 +292,131 @@
     "consoleOut": true,
     "consolePayload": true,
     "consoleParsed": false
+  },
+  "getMapState": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getPIN": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getError": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getGeolocation": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getMoveupWarning": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCrossMapBorderWarning": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getAnimProtect": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getLastTimeStats": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getStats": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getBreakPointStatus": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getChargeInfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getProtectState": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCutEfficiency": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getObstacleHeight": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCutHeight": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCutDirection": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getAutoCutDirection": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getRainDelay": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCustomCutMode": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getBorderSwitch": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getRecognization": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
   }
 }

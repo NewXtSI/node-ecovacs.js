@@ -187,6 +187,66 @@ export class TopicCollector {
       return data || null;
     }
 
+    if (topicName === "getStats") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getBreakPointStatus") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getChargeInfo") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getError") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getRTK") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getRTKOta") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getRobotFeature") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getGeolocation") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getMoveupWarning") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getCrossMapBorderWarning") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getAnimProtect") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getLastTimeStats") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
     if (topicName === "getInfo") {
       const data = parsedPayload?.body?.data;
       if (!data || Object.keys(data).length === 0) {
