@@ -32,7 +32,7 @@
   "getNetInfo": {
     "enabled": true,
     "consoleOut": true,
-    "consolePayload": true,
+    "consolePayload": false,
     "consoleParsed": true
   },
   "getLifeSpan": {

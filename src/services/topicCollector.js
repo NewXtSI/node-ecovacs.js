@@ -131,6 +131,18 @@ export class TopicCollector {
       return data || null;
     }
 
+    if (topicName === "getLifeSpan") {
+      const data = parsedPayload?.body?.data;
+      if (!Array.isArray(data) || data.length === 0) {
+        return null;
+      }
+
+      // Convert array to object keyed by type: { blade: { left, total }, lensbrush: { left, total } }
+      return Object.fromEntries(
+        data.map(({ type, left, total }) => [type, { left, total }])
+      );
+    }
+
     return parsedPayload;
   }
 }

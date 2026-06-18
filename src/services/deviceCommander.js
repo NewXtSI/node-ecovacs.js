@@ -6,16 +6,17 @@ const PATH_API_IOT_DEVMANAGER = "iot/devmanager.do";
 
 // Known poll commands (JSON data type) that request current state.
 // The device replies with an ATR MQTT message for each.
+// Each entry can be a string (command name) or { name, data } for commands requiring body data.
 export const POLL_COMMANDS = [
   "getBattery",
   "getCleanInfo",
   "getChargeState",
   "getPos",
   "getNetInfo",
-  "getLifeSpan"
+  { name: "getLifeSpan", data: { type: ["blade", "lensbrush"] } }
 ];
 
-function buildCommandPayload(commandName) {
+function buildCommandPayload(bodyData = {}) {
   return JSON.stringify({
     header: {
       pri: 1,
@@ -24,7 +25,7 @@ function buildCommandPayload(commandName) {
       ver: "0.0.50"
     },
     body: {
-      data: {}
+      data: bodyData
     }
   });
 }
@@ -35,14 +36,16 @@ export class DeviceCommander {
     this.logger = logger;
   }
 
-  async sendCommand(device, commandName) {
+  async sendCommand(device, commandEntry) {
+    const commandName = typeof commandEntry === "string" ? commandEntry : commandEntry.name;
+    const commandData = typeof commandEntry === "string" ? {} : (commandEntry.data || {});
     const sessionCredentials = await this.cloudClient.getSessionCredentials();
 
     // Body structure: cmdName, payload, payloadType, td, toId, toRes, toType
     // Matches client.py command.py _execute_api_request
     const body = {
       cmdName: commandName,
-      payload: buildCommandPayload(commandName),
+      payload: buildCommandPayload(commandData),
       payloadType: "j",
       td: "q",
       toId: device.did,
@@ -63,7 +66,8 @@ export class DeviceCommander {
 
     this.logger.info("Sending command", {
       device: device.nick || device.name,
-      command: commandName
+      command: commandName,
+      ...(Object.keys(commandData).length > 0 ? { data: commandData } : {})
     });
 
     const response = await this.cloudClient.postAuthenticated(
