@@ -41,17 +41,22 @@ export class TopicCollector {
     }
 
     // iot/p2p/[command]/[from]/[fromClass]/[fromRes]/[to]/[toClass]/[toRes]/[q|p]/[msgId]/j
-    // Only process 'p' (reply from device), skip 'q' (query sent to device)
     if (parts[0] === "iot" && parts[1] === "p2p") {
-      const direction = parts[9];
-      if (direction !== "p") {
-        return null;
-      }
-
       return parts[2];
     }
 
     return null;
+  }
+
+  isDeviceReply(fullTopic) {
+    const parts = String(fullTopic).split("/");
+    // atr topics are always device-originated
+    if (parts[1] === "atr") {
+      return true;
+    }
+
+    // p2p: direction is at index 9 — 'p' = reply from device, 'q' = query to device
+    return parts[9] === "p";
   }
 
   collect(fullTopic, payloadString) {
@@ -107,7 +112,7 @@ export class TopicCollector {
       this.logger.info("Payload", payloadString);
     }
 
-    if (topicConfig.consoleParsed && parsedPayload !== null) {
+    if (topicConfig.consoleParsed && parsedPayload !== null && this.isDeviceReply(fullTopic)) {
       const parsedInfo = this.parseTopicPayload(topicName, parsedPayload);
       if (parsedInfo !== null) {
         this.logger.info(`Parsed ${topicName}`, parsedInfo);

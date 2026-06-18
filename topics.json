@@ -244,5 +244,53 @@
     "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_setting-evt": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "setVolume": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "onVolume": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "setPIN": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "getRobotFeature": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "StartAkvsVideo": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "onVideoCamera": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_camera": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
   }
 }
