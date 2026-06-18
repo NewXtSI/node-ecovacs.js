@@ -126,6 +126,11 @@ export class TopicCollector {
       return data || null;
     }
 
+    if (topicName === "getNetInfo") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
     return parsedPayload;
   }
 }
