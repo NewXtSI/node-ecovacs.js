@@ -19,9 +19,9 @@
   },
   "getCleanInfo": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
-    "consoleParsed": false
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": true
   },
   "getChargeState": {
     "enabled": true,
