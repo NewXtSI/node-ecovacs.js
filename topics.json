@@ -6,9 +6,39 @@
     "consoleParsed": true
   },
   "getBatteryInfo": {
-    "enabled": true,
+    "enabled": false,
     "consoleOut": true,
     "consolePayload": false,
     "consoleParsed": true
+  },
+  "getBattery": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCleanInfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getChargeState": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getNetInfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getLifeSpan": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
   }
 }

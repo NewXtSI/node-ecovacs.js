@@ -1,4 +1,4 @@
-import { loadConfig } from "./config.js";
+import { loadConfig, writeTopicsFile } from "./config.js";
 import { createLogger } from "./logger.js";
 import { EcovacsCloudClient } from "./services/ecovacsCloudClient.js";
 import { GoatMqttClient, buildDeviceTopics } from "./services/goatMqttClient.js";
@@ -45,7 +45,26 @@ async function main() {
     });
   }
 
-  const topicCollector = new TopicCollector({ topicsConfig: topics, logger });
+  const topicCollector = new TopicCollector({
+    topicsConfig: topics,
+    logger,
+    logDiscovery: settings.logDiscovery !== false,
+    onDiscoverTopic: async (topicName) => {
+      topics[topicName] = {
+        enabled: false,
+        consoleOut: false,
+        consolePayload: false,
+        consoleParsed: false
+      };
+
+      try {
+        await writeTopicsFile("./topics.json", topics);
+        logger.info("Topic auto-registered", { topic: topicName });
+      } catch (error) {
+        logger.error("Failed to save discovered topic", { topic: topicName, error: error.message });
+      }
+    }
+  });
 
   let mqttClient = null;
 
@@ -69,7 +88,11 @@ async function main() {
 
   if (mqttDevices.length > 0) {
     const sessionCredentials = await cloudClient.getSessionCredentials();
-    mqttClient = new GoatMqttClient({ logger, logRaw: settings.logRawMqtt === true });
+    mqttClient = new GoatMqttClient({
+      logger,
+      logRaw: settings.logRawMqtt === true,
+      rawTopicFilter: (fullTopic) => topicCollector.shouldLogPayloadTopic(fullTopic)
+    });
 
     await mqttClient.connect({
       deviceId: credentials.deviceId,

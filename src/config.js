@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 
 async function readJsonFile(filePath) {
   let raw;
@@ -16,6 +16,11 @@ async function readJsonFile(filePath) {
   }
 
   return JSON.parse(raw);
+}
+
+export async function writeTopicsFile(filePath, topics) {
+  const json = JSON.stringify(topics, null, 2) + "\n";
+  await writeFile(filePath, json, "utf8");
 }
 
 export async function loadConfig() {

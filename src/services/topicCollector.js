@@ -1,8 +1,32 @@
 export class TopicCollector {
-  constructor({ topicsConfig, logger }) {
+  constructor({ topicsConfig, logger, logDiscovery = false, onDiscoverTopic = null }) {
     this.topicsConfig = topicsConfig;
     this.logger = logger;
-    this.seenTopics = new Set();
+    this.logDiscovery = logDiscovery;
+    this.onDiscoverTopic = onDiscoverTopic;
+    this.discoveredTopics = new Set();
+  }
+
+  getTopicConfig(fullTopic) {
+    const topicName = this.resolveTopicName(fullTopic);
+    if (!topicName) {
+      return null;
+    }
+
+    return {
+      topicName,
+      topicConfig: this.topicsConfig[topicName] || null
+    };
+  }
+
+  shouldLogPayloadTopic(fullTopic) {
+    const resolved = this.getTopicConfig(fullTopic);
+    if (!resolved) {
+      return false;
+    }
+
+    const { topicConfig } = resolved;
+    return Boolean(topicConfig?.enabled && topicConfig?.consoleOut && topicConfig?.consolePayload);
   }
 
   resolveTopicName(fullTopic) {
@@ -21,26 +45,35 @@ export class TopicCollector {
   }
 
   collect(fullTopic, payloadString) {
-    const topicName = this.resolveTopicName(fullTopic);
-    if (!topicName) {
+    const resolved = this.getTopicConfig(fullTopic);
+    if (!resolved) {
       return;
     }
 
-    const parts = fullTopic.split("/");
-    const topicType = parts[1]; // "atr" or "p2p"
+    const { topicName, topicConfig } = resolved;
 
-    // Discovery: log every ATR/P2P command name the first time it appears
-    const seenKey = `${topicType}:${topicName}`;
-    if (!this.seenTopics.has(seenKey)) {
-      this.seenTopics.add(seenKey);
-      this.logger.info(`[${topicType.toUpperCase()} DISCOVERED]`, {
-        command: topicName,
-        did: parts[3] || null
-      });
+    // Handle discovered topics: auto-register and optionally log
+    if (!topicConfig) {
+      if (!this.discoveredTopics.has(topicName)) {
+        this.discoveredTopics.add(topicName);
+        if (this.logDiscovery) {
+          this.logger.info("[TOPIC DISCOVERED]", { topic: topicName });
+        }
+
+        if (this.onDiscoverTopic) {
+          this.onDiscoverTopic(topicName);
+        }
+      }
+
+      return;
     }
 
-    const topicConfig = this.topicsConfig[topicName];
-    if (!topicConfig?.enabled) {
+    if (!topicConfig.enabled) {
+      return;
+    }
+
+    // Master switch per topic: if consoleOut is false, suppress all output.
+    if (!topicConfig.consoleOut) {
       return;
     }
 
@@ -57,6 +90,8 @@ export class TopicCollector {
         shortName: topicName,
         fullTopic
       });
+    } else {
+      return;
     }
 
     if (topicConfig.consolePayload) {
@@ -64,7 +99,23 @@ export class TopicCollector {
     }
 
     if (topicConfig.consoleParsed && parsedPayload !== null) {
-      this.logger.info("Parsed payload", parsedPayload);
+      const parsedInfo = this.parseTopicPayload(topicName, parsedPayload);
+      if (parsedInfo !== null) {
+        this.logger.info("Parsed payload", parsedInfo);
+      }
     }
+  }
+
+  parseTopicPayload(topicName, parsedPayload) {
+    if (topicName === "getPos") {
+      const data = parsedPayload?.body?.data;
+      if (!data || Object.keys(data).length === 0) {
+        return null;
+      }
+
+      return data;
+    }
+
+    return parsedPayload;
   }
 }
