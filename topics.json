@@ -1,14 +1,296 @@
 {
   "getPos": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
+    "consoleOut": false,
+    "consolePayload": false,
     "consoleParsed": true
   },
   "getBatteryInfo": {
     "enabled": true,
-    "consoleOut": true,
+    "consoleOut": false,
+    "consolePayload": true,
+    "consoleParsed": true
+  },
+  "getBattery": {
+    "enabled": true,
+    "consoleOut": false,
     "consolePayload": false,
     "consoleParsed": true
+  },
+  "getCleanInfo": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "getChargeState": {
+    "enabled": true,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": true
+  },
+  "getNetInfo": {
+    "enabled": true,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": true
+  },
+  "getLifeSpan": {
+    "enabled": true,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": true
+  },
+  "getSleep": {
+    "enabled": true,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": true
+  },
+  "getTotalStats": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_sysinfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_power": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_batterytemp": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_reedvoltage": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_machine": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_rtkinfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "GetWKVer": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getNetworkSwitch": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getOta": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getRTKOta": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getInfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getMI": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getCachedMapInfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getTimeZone": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getSchedules": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getMoveCtrlState": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "appping": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onMI": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onArI": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getRelocationState": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getMapTrace": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getScheduleLatestTask": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getAreaSet": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getScheduleTaskInfo": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onScheduleLatestTask": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getVolume": {
+    "enabled": true,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": true
+  },
+  "getGnss": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onGnss": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getRTK": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getAreaParameter": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "getRemoteSupport": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onRemoteSupport": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_setting-evt": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "setVolume": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "onVolume": {
+    "enabled": true,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "setPIN": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "getRobotFeature": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "StartAkvsVideo": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "onVideoCamera": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_camera": {
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": false
   }
 }

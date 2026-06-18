@@ -151,9 +151,10 @@ function mqttTopicMatches(filter, topic) {
 }
 
 export class GoatMqttClient {
-  constructor({ logger, logRaw = false }) {
+  constructor({ logger, logRaw = false, rawTopicFilter = null }) {
     this.logger = logger;
     this.logRaw = logRaw;
+    this.rawTopicFilter = rawTopicFilter;
     this.client = null;
     // Each entry: { filters: string[], handler: fn }
     this.subscriptions = [];
@@ -194,7 +195,8 @@ export class GoatMqttClient {
     this.client.on("message", (receivedTopic, payload) => {
       const payloadString = payload.toString("utf8");
 
-      if (this.logRaw) {
+      const allowRaw = this.rawTopicFilter ? this.rawTopicFilter(receivedTopic) : true;
+      if (this.logRaw && allowRaw) {
         this.logger.info("[RAW MQTT]", { topic: receivedTopic, payload: payloadString });
       }
 

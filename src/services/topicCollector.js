@@ -1,8 +1,32 @@
 export class TopicCollector {
-  constructor({ topicsConfig, logger }) {
+  constructor({ topicsConfig, logger, logDiscovery = false, onDiscoverTopic = null }) {
     this.topicsConfig = topicsConfig;
     this.logger = logger;
-    this.seenTopics = new Set();
+    this.logDiscovery = logDiscovery;
+    this.onDiscoverTopic = onDiscoverTopic;
+    this.discoveredTopics = new Set();
+  }
+
+  getTopicConfig(fullTopic) {
+    const topicName = this.resolveTopicName(fullTopic);
+    if (!topicName) {
+      return null;
+    }
+
+    return {
+      topicName,
+      topicConfig: this.topicsConfig[topicName] || null
+    };
+  }
+
+  shouldLogPayloadTopic(fullTopic) {
+    const resolved = this.getTopicConfig(fullTopic);
+    if (!resolved) {
+      return false;
+    }
+
+    const { topicConfig } = resolved;
+    return Boolean(topicConfig?.enabled && topicConfig?.consolePayload);
   }
 
   resolveTopicName(fullTopic) {
@@ -11,36 +35,60 @@ export class TopicCollector {
       return null;
     }
 
-    // iot/atr/[command]/...
-    // iot/p2p/[command]/...
-    if (parts[0] === "iot" && (parts[1] === "atr" || parts[1] === "p2p")) {
+    // iot/atr/[command]/... — broadcast from device, always a response
+    if (parts[0] === "iot" && parts[1] === "atr") {
+      return parts[2];
+    }
+
+    // iot/p2p/[command]/[from]/[fromClass]/[fromRes]/[to]/[toClass]/[toRes]/[q|p]/[msgId]/j
+    if (parts[0] === "iot" && parts[1] === "p2p") {
       return parts[2];
     }
 
     return null;
   }
 
+  isDeviceReply(fullTopic) {
+    const parts = String(fullTopic).split("/");
+    // atr topics are always device-originated
+    if (parts[1] === "atr") {
+      return true;
+    }
+
+    // p2p: direction is at index 9 — 'p' = reply from device, 'q' = query to device
+    return parts[9] === "p";
+  }
+
   collect(fullTopic, payloadString) {
-    const topicName = this.resolveTopicName(fullTopic);
-    if (!topicName) {
+    const resolved = this.getTopicConfig(fullTopic);
+    if (!resolved) {
       return;
     }
 
-    const parts = fullTopic.split("/");
-    const topicType = parts[1]; // "atr" or "p2p"
+    const { topicName, topicConfig } = resolved;
 
-    // Discovery: log every ATR/P2P command name the first time it appears
-    const seenKey = `${topicType}:${topicName}`;
-    if (!this.seenTopics.has(seenKey)) {
-      this.seenTopics.add(seenKey);
-      this.logger.info(`[${topicType.toUpperCase()} DISCOVERED]`, {
-        command: topicName,
-        did: parts[3] || null
-      });
+    // Handle discovered topics: auto-register and optionally log
+    if (!topicConfig) {
+      if (!this.discoveredTopics.has(topicName)) {
+        this.discoveredTopics.add(topicName);
+        if (this.logDiscovery) {
+          this.logger.info("[TOPIC DISCOVERED]", { topic: topicName });
+        }
+
+        if (this.onDiscoverTopic) {
+          this.onDiscoverTopic(topicName);
+        }
+      }
+
+      return;
     }
 
-    const topicConfig = this.topicsConfig[topicName];
-    if (!topicConfig?.enabled) {
+    if (!topicConfig.enabled) {
+      return;
+    }
+
+    // If no output flags are active at all, skip processing entirely
+    if (!topicConfig.consoleOut && !topicConfig.consolePayload && !topicConfig.consoleParsed) {
       return;
     }
 
@@ -52,6 +100,7 @@ export class TopicCollector {
       parsedPayload = null;
     }
 
+    // consoleOut controls only the "Topic received" header line
     if (topicConfig.consoleOut) {
       this.logger.info("Topic received", {
         shortName: topicName,
@@ -63,8 +112,70 @@ export class TopicCollector {
       this.logger.info("Payload", payloadString);
     }
 
-    if (topicConfig.consoleParsed && parsedPayload !== null) {
-      this.logger.info("Parsed payload", parsedPayload);
+    if (topicConfig.consoleParsed && parsedPayload !== null && this.isDeviceReply(fullTopic)) {
+      const parsedInfo = this.parseTopicPayload(topicName, parsedPayload);
+      if (parsedInfo !== null) {
+        this.logger.info(`Parsed ${topicName}`, parsedInfo);
+      }
     }
+  }
+
+  parseTopicPayload(topicName, parsedPayload) {
+    if (topicName === "getPos") {
+      const data = parsedPayload?.body?.data;
+      if (!data || Object.keys(data).length === 0) {
+        return null;
+      }
+
+      return data;
+    }
+
+    if (topicName === "getBattery") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getChargeState") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getNetInfo") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getLifeSpan") {
+      const data = parsedPayload?.body?.data;
+      if (!Array.isArray(data) || data.length === 0) {
+        return null;
+      }
+
+      // Convert array to object keyed by type: { blade: { left, total }, lensbrush: { left, total } }
+      return Object.fromEntries(
+        data.map(({ type, left, total }) => [type, { left, total }])
+      );
+    }
+
+    if (topicName === "getSleep") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    if (topicName === "getCleanInfo") {
+      const data = parsedPayload?.body?.data;
+      if (!data || Object.keys(data).length === 0) {
+        return null;
+      }
+
+      return data;
+    }
+
+    if (topicName === "getVolume" || topicName === "onVolume") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
+    return parsedPayload;
   }
 }
