@@ -121,6 +121,11 @@ export class TopicCollector {
       return data || null;
     }
 
+    if (topicName === "getChargeState") {
+      const data = parsedPayload?.body?.data;
+      return data || null;
+    }
+
     return parsedPayload;
   }
 }

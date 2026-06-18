@@ -6,9 +6,9 @@
     "consoleParsed": true
   },
   "getBatteryInfo": {
-    "enabled": false,
+    "enabled": true,
     "consoleOut": true,
-    "consolePayload": false,
+    "consolePayload": true,
     "consoleParsed": true
   },
   "getBattery": {
@@ -24,14 +24,14 @@
     "consoleParsed": false
   },
   "getChargeState": {
-    "enabled": false,
-    "consoleOut": false,
-    "consolePayload": false,
-    "consoleParsed": false
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
+    "consoleParsed": true
   },
   "getNetInfo": {
-    "enabled": false,
-    "consoleOut": false,
+    "enabled": true,
+    "consoleOut": true,
     "consolePayload": false,
     "consoleParsed": false
   },
@@ -78,6 +78,12 @@
     "consoleParsed": false
   },
   "onFwBuryPoint-bd_machine": {
+    "enabled": false,
+    "consoleOut": false,
+    "consolePayload": false,
+    "consoleParsed": false
+  },
+  "onFwBuryPoint-bd_rtkinfo": {
     "enabled": false,
     "consoleOut": false,
     "consolePayload": false,
