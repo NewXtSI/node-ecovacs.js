@@ -196,6 +196,21 @@ export class TopicCollector {
       const result = {};
       for (const [nestedCommandName, nestedPayload] of Object.entries(data)) {
         if (nestedCommandName.startsWith("get")) {
+          // Check if nested command is known
+          if (!this.topicsConfig[nestedCommandName]) {
+            // Treat unknown nested command like a discovered topic
+            if (!this.discoveredTopics.has(nestedCommandName)) {
+              this.discoveredTopics.add(nestedCommandName);
+              if (this.logDiscovery) {
+                this.logger.info("[TOPIC DISCOVERED]", { topic: nestedCommandName, context: "nested in getInfo" });
+              }
+
+              if (this.onDiscoverTopic) {
+                this.onDiscoverTopic(nestedCommandName);
+              }
+            }
+          }
+
           const nestedParsed = this.parseTopicPayload(nestedCommandName, { body: nestedPayload });
           result[nestedCommandName] = nestedParsed !== null ? nestedParsed : nestedPayload;
         } else {
