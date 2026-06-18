@@ -13,7 +13,7 @@ export const POLL_COMMANDS = [
   "getChargeState",
   "getPos",
   "getNetInfo",
-  { name: "getLifeSpan", data: { type: ["blade", "lensbrush"] } }
+  { name: "getLifeSpan", data: { type: ["blade", "lensBrush"] } }
 ];
 
 function buildCommandPayload(bodyData = {}) {

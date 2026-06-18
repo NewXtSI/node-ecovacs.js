@@ -26,7 +26,7 @@ export class TopicCollector {
     }
 
     const { topicConfig } = resolved;
-    return Boolean(topicConfig?.enabled && topicConfig?.consoleOut && topicConfig?.consolePayload);
+    return Boolean(topicConfig?.enabled && topicConfig?.consolePayload);
   }
 
   resolveTopicName(fullTopic) {
@@ -72,8 +72,8 @@ export class TopicCollector {
       return;
     }
 
-    // Master switch per topic: if consoleOut is false, suppress all output.
-    if (!topicConfig.consoleOut) {
+    // If no output flags are active at all, skip processing entirely
+    if (!topicConfig.consoleOut && !topicConfig.consolePayload && !topicConfig.consoleParsed) {
       return;
     }
 
@@ -85,13 +85,12 @@ export class TopicCollector {
       parsedPayload = null;
     }
 
+    // consoleOut controls only the "Topic received" header line
     if (topicConfig.consoleOut) {
       this.logger.info("Topic received", {
         shortName: topicName,
         fullTopic
       });
-    } else {
-      return;
     }
 
     if (topicConfig.consolePayload) {
