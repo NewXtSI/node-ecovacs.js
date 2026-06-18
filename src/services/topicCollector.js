@@ -162,6 +162,15 @@ export class TopicCollector {
       return data || null;
     }
 
+    if (topicName === "getCleanInfo") {
+      const data = parsedPayload?.body?.data;
+      if (!data || Object.keys(data).length === 0) {
+        return null;
+      }
+
+      return data;
+    }
+
     if (topicName === "getVolume" || topicName === "onVolume") {
       const data = parsedPayload?.body?.data;
       return data || null;

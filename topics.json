@@ -18,9 +18,9 @@
     "consoleParsed": true
   },
   "getCleanInfo": {
-    "enabled": false,
-    "consoleOut": false,
-    "consolePayload": false,
+    "enabled": true,
+    "consoleOut": true,
+    "consolePayload": true,
     "consoleParsed": false
   },
   "getChargeState": {
@@ -43,8 +43,8 @@
   },
   "getSleep": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
+    "consoleOut": false,
+    "consolePayload": false,
     "consoleParsed": true
   },
   "getTotalStats": {
@@ -205,8 +205,8 @@
   },
   "getVolume": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
+    "consoleOut": false,
+    "consolePayload": false,
     "consoleParsed": true
   },
   "getGnss": {
@@ -259,8 +259,8 @@
   },
   "onVolume": {
     "enabled": true,
-    "consoleOut": true,
-    "consolePayload": true,
+    "consoleOut": false,
+    "consolePayload": false,
     "consoleParsed": false
   },
   "setPIN": {
