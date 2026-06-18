@@ -1,5 +1,6 @@
 {
   "logConnection": true,
   "runtimeSeconds": 30,
-  "logRawMqtt": true
+  "logRawMqtt": true,
+  "deviceClasses": ["2px96q"]
 }

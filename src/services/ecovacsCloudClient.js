@@ -325,7 +325,7 @@ export class EcovacsCloudClient {
     return String(response.authCode);
   }
 
-  async post(path, body, { credentials = null } = {}) {
+  async post(path, body, { credentials = null, queryParams = null } = {}) {
     const requestBody = {
       ...body
     };
@@ -340,7 +340,15 @@ export class EcovacsCloudClient {
       };
     }
 
-    const url = new URL(`api/${path}`, `${this.restConfig.portalUrl}/`).toString();
+    let url = new URL(`api/${path}`, `${this.restConfig.portalUrl}/`).toString();
+
+    if (queryParams) {
+      const qs = new URLSearchParams();
+      for (const [key, value] of Object.entries(queryParams)) {
+        qs.set(key, String(value));
+      }
+      url += `?${qs.toString()}`;
+    }
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
       const response = await fetch(url, {
@@ -402,9 +410,9 @@ export class EcovacsCloudClient {
     throw new Error("Failed to login with token");
   }
 
-  async postAuthenticated(path, body) {
+  async postAuthenticated(path, body, { queryParams = null } = {}) {
     const sessionCredentials = await this.authenticate();
-    return this.post(path, body, { credentials: sessionCredentials });
+    return this.post(path, body, { credentials: sessionCredentials, queryParams });
   }
 
   async getDevices() {

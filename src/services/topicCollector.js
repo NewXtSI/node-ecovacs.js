@@ -2,6 +2,7 @@ export class TopicCollector {
   constructor({ topicsConfig, logger }) {
     this.topicsConfig = topicsConfig;
     this.logger = logger;
+    this.seenTopics = new Set();
   }
 
   resolveTopicName(fullTopic) {
@@ -23,6 +24,19 @@ export class TopicCollector {
     const topicName = this.resolveTopicName(fullTopic);
     if (!topicName) {
       return;
+    }
+
+    const parts = fullTopic.split("/");
+    const topicType = parts[1]; // "atr" or "p2p"
+
+    // Discovery: log every ATR/P2P command name the first time it appears
+    const seenKey = `${topicType}:${topicName}`;
+    if (!this.seenTopics.has(seenKey)) {
+      this.seenTopics.add(seenKey);
+      this.logger.info(`[${topicType.toUpperCase()} DISCOVERED]`, {
+        command: topicName,
+        did: parts[3] || null
+      });
     }
 
     const topicConfig = this.topicsConfig[topicName];

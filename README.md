@@ -49,8 +49,23 @@ npm start
 ## Runtime Flow
 
 [1] Use `settings.json` for global flags:
-- `logConnection`
+- `logConnection` — enable/disable connection and MQTT log output
 - `runtimeSeconds` (0 = forever, >0 = runtime in seconds)
+- `logRawMqtt` — log every raw MQTT frame before filtering
+- `deviceClasses` — whitelist of device class IDs to connect to (empty = all)
+
+Example:
+
+```json
+{
+  "logConnection": true,
+  "runtimeSeconds": 0,
+  "logRawMqtt": false,
+  "deviceClasses": ["2px96q"]
+}
+```
+
+`deviceClasses` uses the `class` field from the device list response. Devices not in the list are skipped with a log line showing what was filtered out.
 
 [2] Connect to Ecovacs cloud using `credentials.json`:
 - login API call
@@ -81,8 +96,9 @@ src/
   logger.js                    # Timestamped logger
   services/
     ecovacsCloudClient.js      # Direct auth + REST API (client.py workflow)
-    goatMqttClient.js          # MQTT config + topic subscription
-    topicCollector.js          # Topic filtering/output logic
+    goatMqttClient.js          # MQTT config, topic subscription, wildcard dispatch
+    topicCollector.js          # ATR/P2P topic discovery and configured output
+    deviceCommander.js         # Send commands via iot/devmanager.do to trigger ATR responses
 ```
 
 ## Notes

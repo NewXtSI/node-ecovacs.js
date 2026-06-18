@@ -3,6 +3,7 @@ import { createLogger } from "./logger.js";
 import { EcovacsCloudClient } from "./services/ecovacsCloudClient.js";
 import { GoatMqttClient, buildDeviceTopics } from "./services/goatMqttClient.js";
 import { TopicCollector } from "./services/topicCollector.js";
+import { DeviceCommander } from "./services/deviceCommander.js";
 
 function resolveRuntimeMs(runtimeSeconds) {
   if (!Number.isFinite(runtimeSeconds) || runtimeSeconds <= 0) {
@@ -45,9 +46,27 @@ async function main() {
 
   let mqttClient = null;
 
-  if (devices.mqtt.length > 0) {
+  const mqttDevices = devices.mqtt.filter((d) => {
+    if (!settings.deviceClasses || settings.deviceClasses.length === 0) {
+      return true;
+    }
+
+    return settings.deviceClasses.includes(d.class);
+  });
+
+  if (mqttDevices.length < devices.mqtt.length) {
+    logger.info("Device filter applied", {
+      total: devices.mqtt.length,
+      active: mqttDevices.length,
+      skipped: devices.mqtt
+        .filter((d) => !mqttDevices.includes(d))
+        .map((d) => ({ class: d.class, deviceName: d.deviceName }))
+    });
+  }
+
+  if (mqttDevices.length > 0) {
     const sessionCredentials = await cloudClient.getSessionCredentials();
-    mqttClient = new GoatMqttClient({ logger });
+    mqttClient = new GoatMqttClient({ logger, logRaw: settings.logRawMqtt === true });
 
     await mqttClient.connect({
       deviceId: credentials.deviceId,
@@ -58,7 +77,7 @@ async function main() {
       overrideMqttUrl: credentials.overrideMqttUrl
     });
 
-    for (const device of devices.mqtt) {
+    for (const device of mqttDevices) {
       const topicsForDevice = buildDeviceTopics(device);
       logger.info("Subscribing device", {
         did: device.did,
@@ -73,8 +92,17 @@ async function main() {
         topicCollector.collect(fullTopic, payload);
       });
     }
+
+    // Poll all MQTT devices once to trigger ATR responses.
+    // Waits briefly so subscriptions are confirmed before requests go out.
+    const commander = new DeviceCommander({ cloudClient, logger });
+    setTimeout(async () => {
+      for (const device of mqttDevices) {
+        await commander.pollDeviceState(device);
+      }
+    }, 1500);
   } else {
-    logger.warn("No eco-ng MQTT devices returned by API.");
+    logger.warn("No matching MQTT devices after filter. Check settings.deviceClasses.");
   }
 
   const runtimeMs = resolveRuntimeMs(settings.runtimeSeconds);

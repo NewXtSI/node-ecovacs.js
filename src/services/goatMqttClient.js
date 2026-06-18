@@ -132,10 +132,31 @@ export function buildDeviceTopics(device) {
   ];
 }
 
+// Checks whether an incoming MQTT topic matches a filter with + and # wildcards.
+function mqttTopicMatches(filter, topic) {
+  const filterParts = filter.split("/");
+  const topicParts = topic.split("/");
+
+  for (let i = 0; i < filterParts.length; i++) {
+    if (filterParts[i] === "#") {
+      return true;
+    }
+
+    if (filterParts[i] !== "+" && filterParts[i] !== topicParts[i]) {
+      return false;
+    }
+  }
+
+  return filterParts.length === topicParts.length;
+}
+
 export class GoatMqttClient {
-  constructor({ logger }) {
+  constructor({ logger, logRaw = false }) {
     this.logger = logger;
+    this.logRaw = logRaw;
     this.client = null;
+    // Each entry: { filters: string[], handler: fn }
+    this.subscriptions = [];
   }
 
   async connect({ deviceId, country, continent, username, password, overrideMqttUrl }) {
@@ -168,6 +189,21 @@ export class GoatMqttClient {
     });
 
     this.logger.info("MQTT connected");
+
+    // Single central message handler — dispatches to matching subscriptions only
+    this.client.on("message", (receivedTopic, payload) => {
+      const payloadString = payload.toString("utf8");
+
+      if (this.logRaw) {
+        this.logger.info("[RAW MQTT]", { topic: receivedTopic, payload: payloadString });
+      }
+
+      for (const sub of this.subscriptions) {
+        if (sub.filters.some((f) => mqttTopicMatches(f, receivedTopic))) {
+          sub.handler(receivedTopic, payloadString);
+        }
+      }
+    });
   }
 
   subscribe(topicFilters, messageHandler) {
@@ -177,10 +213,7 @@ export class GoatMqttClient {
 
     const filters = Array.isArray(topicFilters) ? topicFilters : [topicFilters];
     this.client.subscribe(filters);
-
-    this.client.on("message", (receivedTopic, payload) => {
-      messageHandler(receivedTopic, payload.toString("utf8"));
-    });
+    this.subscriptions.push({ filters, handler: messageHandler });
   }
 
   close() {
