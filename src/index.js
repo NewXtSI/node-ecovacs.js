@@ -55,7 +55,8 @@ async function main() {
         enabled: false,
         consoleOut: false,
         consolePayload: false,
-        consoleParsed: false
+        consoleParsed: false,
+        hasParser: false
       };
 
       try {
@@ -102,7 +103,9 @@ async function main() {
     mqttClient = new GoatMqttClient({
       logger,
       logRaw: settings.logRawMqtt === true,
-      rawTopicFilter: (fullTopic) => topicCollector.shouldLogPayloadTopic(fullTopic)
+      rawTopicFilter: (fullTopic) => topicCollector.shouldLogPayloadTopic(fullTopic),
+      logTrafficToFile: settings.logMqttTrafficToFile === true,
+      trafficLogFilePath: settings.mqttTrafficLogFile || "mqtt_traffic.log"
     });
 
     await mqttClient.connect({

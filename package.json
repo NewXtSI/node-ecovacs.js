@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Ecovacs Node.js library for the ecovacs cloud subsystem",
   "type": "module",
-  "main": "src/index.js",
+  "main": "src/lib.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
@@ -13,6 +13,7 @@
     "ecovacs",
     "deebot",
     "goat",
+    "lawnmower",
     "mqtt"
   ],
   "author": "",

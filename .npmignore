@@ -1,0 +1,38 @@
+# Development and test files
+.git/
+.gitignore
+.eslintrc.json
+node_modules/
+package-lock.json
+
+# Config files (user-specific)
+credentials.json
+credentials.example.json
+settings.json
+topics.json
+
+# Test and demo files
+test.js
+src/index.js
+src/cli.js
+clean_log.txt
+out.txt
+mqtt_traffic.log
+
+# Documentation for developers
+README.md
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local

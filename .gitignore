@@ -4,3 +4,6 @@ credentials.json
 coverage/
 .DS_Store
 *.log
+mqtt_traffic.log
+clean_log.txt
+out.txt

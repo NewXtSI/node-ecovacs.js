@@ -1,8 +1,10 @@
 {
   "enableLogging": true,
   "logConnection": false,
-  "runtimeSeconds": 120,
-  "logRawMqtt": false,
+  "runtimeSeconds": 0,
+  "logRawMqtt": true,
+  "logMqttTrafficToFile": true,
+  "mqttTrafficLogFile": "mqtt_traffic.log",
   "logDiscovery": true,
   "logBinaryTopics": false,
   "deviceClasses": ["2px96q"]

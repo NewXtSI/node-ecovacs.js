@@ -1,4 +1,6 @@
 import mqtt from "mqtt";
+import { appendFile, mkdir } from "node:fs/promises";
+import path from "node:path";
 
 function getContinent(alpha2Country, explicitContinent) {
   if (explicitContinent) {
@@ -151,13 +153,53 @@ function mqttTopicMatches(filter, topic) {
 }
 
 export class GoatMqttClient {
-  constructor({ logger, logRaw = false, rawTopicFilter = null }) {
+  constructor({
+    logger,
+    logRaw = false,
+    rawTopicFilter = null,
+    logTrafficToFile = false,
+    trafficLogFilePath = "mqtt_traffic.log"
+  }) {
     this.logger = logger;
     this.logRaw = logRaw;
     this.rawTopicFilter = rawTopicFilter;
+    this.logTrafficToFile = logTrafficToFile;
+    this.trafficLogFilePath = trafficLogFilePath;
+    this.trafficLogWriteQueue = Promise.resolve();
+    this.trafficLogInitDone = false;
     this.client = null;
     // Each entry: { filters: string[], handler: fn }
     this.subscriptions = [];
+  }
+
+  async ensureTrafficLogFileReady() {
+    if (this.trafficLogInitDone || !this.logTrafficToFile) {
+      return;
+    }
+
+    const logDir = path.dirname(this.trafficLogFilePath);
+    if (logDir && logDir !== ".") {
+      await mkdir(logDir, { recursive: true });
+    }
+
+    this.trafficLogInitDone = true;
+  }
+
+  writeTrafficLogLine(entry) {
+    if (!this.logTrafficToFile) {
+      return;
+    }
+
+    const line = `${JSON.stringify(entry)}\n`;
+    this.trafficLogWriteQueue = this.trafficLogWriteQueue
+      .then(() => this.ensureTrafficLogFileReady())
+      .then(() => appendFile(this.trafficLogFilePath, line, "utf8"))
+      .catch((error) => {
+        this.logger.warn("Failed to write MQTT traffic log", {
+          file: this.trafficLogFilePath,
+          error: error.message
+        });
+      });
   }
 
   async connect({ deviceId, country, continent, username, password, overrideMqttUrl }) {
@@ -194,6 +236,12 @@ export class GoatMqttClient {
     // Single central message handler — dispatches to matching subscriptions only
     this.client.on("message", (receivedTopic, payload) => {
       const payloadString = payload.toString("utf8");
+
+      this.writeTrafficLogLine({
+        ts: new Date().toISOString(),
+        topic: receivedTopic,
+        payload: payloadString
+      });
 
       const allowRaw = this.rawTopicFilter ? this.rawTopicFilter(receivedTopic) : true;
       if (this.logRaw && allowRaw) {
