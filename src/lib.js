@@ -2,6 +2,11 @@ import { EcovacsCloudClient } from "./services/ecovacsCloudClient.js";
 import { Goat } from "./goat.js";
 import { createLogger } from "./logger.js";
 import { loadConfig } from "./config.js";
+import { randomUUID } from "node:crypto";
+
+function createClientDeviceId() {
+  return randomUUID().replace(/-/g, "");
+}
 
 export class EcovacsGoatAdapter {
   constructor(credentials = {}) {
@@ -44,17 +49,20 @@ export class EcovacsGoatAdapter {
   validateCredentials() {
     const hasEmail = Boolean(this.credentials.email);
     const hasAuth = Boolean(this.credentials.password || this.credentials.passwordHash);
-    const hasDeviceId = Boolean(this.credentials.deviceId);
 
-    if (!hasEmail || !hasAuth || !hasDeviceId) {
+    if (!hasEmail || !hasAuth) {
       throw new Error(
-        "Missing required credentials. Call setCredentials() or setPasswordHash() with email, password, and deviceId."
+        "Missing required credentials. Call setCredentials() or setPasswordHash() with email and password/passwordHash."
       );
     }
   }
 
   async connect() {
     this.validateCredentials();
+
+    if (!this.credentials.deviceId) {
+      this.credentials.deviceId = createClientDeviceId();
+    }
 
     this.cloudClient = new EcovacsCloudClient({
       credentials: {

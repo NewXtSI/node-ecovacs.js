@@ -25,8 +25,7 @@ const adapter = new EcovacsGoatAdapter();
 
 // Set credentials
 adapter.setCredentials('your-email@example.com', 'your-password', {
-  country: 'DE',  // Optional, defaults to 'DE'
-  deviceId: 'your-device-id'
+  country: 'DE'  // Optional, defaults to 'DE'
 });
 
 // Connect to Ecovacs cloud
@@ -99,7 +98,7 @@ const adapter = new EcovacsGoatAdapter(credentials);
 - `passwordHash`: Alternative to password (MD5 hash)
 - `country`: Country code (default: 'DE')
 - `continent`: Continent code (optional)
-- `deviceId`: Ecovacs device ID
+- `deviceId`: Optional client/app identifier used for cloud auth (NOT the Goat device `did`)
 - `overrideMqttUrl`: MQTT broker URL override (optional)
 
 #### Methods
@@ -110,8 +109,7 @@ Set or update credentials.
 
 ```javascript
 adapter.setCredentials('user@example.com', 'password', {
-  country: 'DE',
-  deviceId: 'your-device-id'
+  country: 'DE'
 });
 ```
 
@@ -121,8 +119,7 @@ Set credentials using password hash instead of plaintext password.
 
 ```javascript
 adapter.setPasswordHash('user@example.com', 'md5-hash-of-password', {
-  country: 'DE',
-  deviceId: 'your-device-id'
+  country: 'DE'
 });
 ```
 
@@ -133,6 +130,8 @@ Connect to Ecovacs cloud API.
 ```javascript
 await adapter.connect();
 ```
+
+If no `deviceId` is provided, the adapter generates a random client `deviceId` automatically.
 
 **Throws:** Error if credentials are missing.
 
@@ -309,8 +308,7 @@ The library uses three optional config files:
      "email": "user@example.com",
      "password": "password",
      "accountId": "user@example.com",
-     "country": "DE",
-     "deviceId": "your-device-id"
+    "country": "DE"
    }
    ```
 
@@ -357,10 +355,9 @@ class GoatAdapter {
     this.devices = [];
   }
 
-  async init(email, password, deviceId) {
+  async init(email, password) {
     this.adapter.setCredentials(email, password, {
-      country: 'DE',
-      deviceId
+      country: 'DE'
     });
     await this.adapter.connect();
 
