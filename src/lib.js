@@ -1,7 +1,7 @@
 import { EcovacsCloudClient } from "./services/ecovacsCloudClient.js";
 import { Goat } from "./goat.js";
 import { createLogger } from "./logger.js";
-import { loadConfig } from "./config.js";
+import { createDefaultSettings, loadConfig } from "./config.js";
 import { randomUUID } from "node:crypto";
 
 function createClientDeviceId() {
@@ -21,9 +21,10 @@ export class EcovacsGoatAdapter {
     };
 
     this.cloudClient = null;
-    this.logger = createLogger({ enableLogging: false, logConnection: false });
+    this.logger = createLogger({ enableLogging: true, logConnection: true });
     this.isConnected = false;
     this.devices = [];
+    this.goatSettings = createDefaultSettings();
   }
 
   setCredentials(email, password, options = {}) {
@@ -55,6 +56,46 @@ export class EcovacsGoatAdapter {
         "Missing required credentials. Call setCredentials() or setPasswordHash() with email and password/passwordHash."
       );
     }
+  }
+
+  setEnableLogging(enabled) {
+    this.goatSettings.enableLogging = Boolean(enabled);
+    this.logger?.setEnableLogging?.(enabled);
+    return this;
+  }
+
+  setLogConnection(enabled) {
+    this.goatSettings.logConnection = Boolean(enabled);
+    this.logger?.setLogConnection?.(enabled);
+    return this;
+  }
+
+  setLogRawMqtt(enabled) {
+    this.goatSettings.logRawMqtt = Boolean(enabled);
+    return this;
+  }
+
+  setLogMqttTrafficToFile(enabled) {
+    this.goatSettings.logMqttTrafficToFile = Boolean(enabled);
+    return this;
+  }
+
+  setMqttTrafficLogFile(filePath) {
+    if (typeof filePath !== "string" || filePath.trim().length === 0) {
+      throw new Error("setMqttTrafficLogFile requires a non-empty file path string.");
+    }
+    this.goatSettings.mqttTrafficLogFile = filePath;
+    return this;
+  }
+
+  setLogDiscovery(enabled) {
+    this.goatSettings.logDiscovery = Boolean(enabled);
+    return this;
+  }
+
+  setLogBinaryTopics(enabled) {
+    this.goatSettings.logBinaryTopics = Boolean(enabled);
+    return this;
   }
 
   async connect() {
@@ -135,14 +176,20 @@ export class EcovacsGoatAdapter {
     const goat = new Goat();
     goat.cloudClient = this.cloudClient;
 
-    const { settings, credentials, topics } = await loadConfig();
-    goat.settings = settings;
+    const { settings, topics } = await loadConfig({
+      requireCredentials: false,
+      requireTopics: false
+    });
+    goat.settings = {
+      ...createDefaultSettings(),
+      ...(settings || {}),
+      ...this.goatSettings
+    };
     goat.credentials = {
-      ...credentials,
       ...this.credentials,
       deviceId: device.did
     };
-    goat.topics = topics;
+    goat.topics = topics || {};
     goat.logger = this.logger;
     goat.device = device;
 

@@ -24,7 +24,8 @@ npm install
 copy credentials.example.json credentials.json
 ```
 
-3. Adjust the values in `credentials.json`, `settings.json`, and `topics.json`.
+3. Adjust the values in `credentials.json` and `topics.json`.
+  `settings.json` is optional and only needed if you want to override defaults.
 
 Credentials format:
 
@@ -48,11 +49,14 @@ npm start
 
 ## Runtime Flow
 
-[1] Use `settings.json` for global flags:
+[1] Runtime flags have built-in defaults (all debug flags enabled). `settings.json` is optional for overrides:
 - `enableLogging` — master switch for all logs
 - `logConnection` — only logs related to connection setup (cloud + MQTT)
 - `runtimeSeconds` (0 = forever, >0 = runtime in seconds)
 - `logRawMqtt` — log every raw MQTT frame before filtering
+- `logMqttTrafficToFile` — write each MQTT message as JSONL
+- `mqttTrafficLogFile` — target file for JSONL traffic logs
+- `logDiscovery` — log auto-discovered topics
 - `logBinaryTopics` — emit chunk progress and LZMA decode diagnostics for binary blob topics
 - `deviceClasses` — whitelist of device class IDs to connect to (empty = all)
 
@@ -63,9 +67,12 @@ Example:
   "enableLogging": true,
   "logConnection": true,
   "runtimeSeconds": 0,
-  "logRawMqtt": false,
-  "logBinaryTopics": false,
-  "deviceClasses": ["2px96q"]
+  "logRawMqtt": true,
+  "logMqttTrafficToFile": true,
+  "mqttTrafficLogFile": "mqtt_traffic.log",
+  "logDiscovery": true,
+  "logBinaryTopics": true,
+  "deviceClasses": []
 }
 ```
 

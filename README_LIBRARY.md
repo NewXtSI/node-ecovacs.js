@@ -28,6 +28,13 @@ adapter.setCredentials('your-email@example.com', 'your-password', {
   country: 'DE'  // Optional, defaults to 'DE'
 });
 
+// Optional: runtime debug toggles (all debug flags are true by default)
+adapter.setLogRawMqtt(true);
+adapter.setLogDiscovery(true);
+adapter.setLogBinaryTopics(true);
+adapter.setLogMqttTrafficToFile(true);
+adapter.setMqttTrafficLogFile('mqtt_traffic.log');
+
 // Connect to Ecovacs cloud
 await adapter.connect();
 
@@ -186,6 +193,30 @@ Disconnect from Ecovacs cloud.
 await adapter.disconnect();
 ```
 
+##### Debug Toggle Methods
+
+All methods are chainable and affect newly created Goat instances:
+
+```javascript
+adapter
+  .setEnableLogging(true)
+  .setLogConnection(true)
+  .setLogRawMqtt(true)
+  .setLogDiscovery(true)
+  .setLogBinaryTopics(true)
+  .setLogMqttTrafficToFile(true)
+  .setMqttTrafficLogFile('mqtt_traffic.log');
+```
+
+Available methods:
+- `setEnableLogging(enabled)`
+- `setLogConnection(enabled)`
+- `setLogRawMqtt(enabled)`
+- `setLogDiscovery(enabled)`
+- `setLogBinaryTopics(enabled)`
+- `setLogMqttTrafficToFile(enabled)`
+- `setMqttTrafficLogFile(filePath)`
+
 ---
 
 ### Goat
@@ -296,11 +327,37 @@ await goat.disconnect();
 
 Closes MQTT connection and triggers `disconnected` event.
 
+##### Runtime Debug Toggle Methods
+
+These methods apply immediately, even while connected:
+
+```javascript
+goat
+  .setEnableLogging(true)
+  .setLogConnection(true)
+  .setLogRawMqtt(true)
+  .setLogDiscovery(true)
+  .setLogBinaryTopics(true)
+  .setLogMqttTrafficToFile(true)
+  .setMqttTrafficLogFile('mqtt_traffic.log');
+```
+
+Available methods:
+- `setEnableLogging(enabled)`
+- `setLogConnection(enabled)`
+- `setLogRawMqtt(enabled)`
+- `setLogDiscovery(enabled)`
+- `setLogBinaryTopics(enabled)`
+- `setLogMqttTrafficToFile(enabled)`
+- `setMqttTrafficLogFile(filePath)`
+
 ---
 
 ## Configuration Files
 
-The library uses three optional config files:
+The library can run fully without `settings.json`.
+
+Supported files:
 
 1. **credentials.json** - Ecovacs account credentials (recommended over passing in code)
    ```json
@@ -312,16 +369,18 @@ The library uses three optional config files:
    }
    ```
 
-2. **settings.json** - Runtime settings
+  2. **settings.json** - Optional runtime overrides (all debug flags default to `true`)
    ```json
    {
-     "enableLogging": false,
-     "logRawMqtt": false,
-     "logMqttTrafficToFile": false,
+     "enableLogging": true,
+     "logConnection": true,
+     "logRawMqtt": true,
+     "logMqttTrafficToFile": true,
      "mqttTrafficLogFile": "mqtt_traffic.log",
      "runtimeSeconds": 0,
-     "logDiscovery": false,
-     "deviceClasses": ["2px96q"]
+     "logDiscovery": true,
+     "logBinaryTopics": true,
+     "deviceClasses": []
    }
    ```
 
@@ -329,14 +388,14 @@ The library uses three optional config files:
 
 ## Advanced: Full Traffic Logging
 
-For debugging, enable full MQTT traffic logging:
+For debugging, full MQTT traffic logging is enabled by default.
+
+To override at runtime:
 
 ```javascript
-// In settings.json
-{
-  "logMqttTrafficToFile": true,
-  "mqttTrafficLogFile": "mqtt_traffic.log"
-}
+adapter
+  .setLogMqttTrafficToFile(true)
+  .setMqttTrafficLogFile('mqtt_traffic.log');
 ```
 
 This logs all incoming MQTT messages as JSONL:

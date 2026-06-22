@@ -1,4 +1,4 @@
-import { loadConfig, writeTopicsFile } from "./config.js";
+import { createDefaultSettings, loadConfig, writeTopicsFile } from "./config.js";
 import { createLogger } from "./logger.js";
 import { EcovacsCloudClient } from "./services/ecovacsCloudClient.js";
 import { GoatMqttClient, buildDeviceTopics } from "./services/goatMqttClient.js";
@@ -7,9 +7,9 @@ import { DeviceCommander } from "./services/deviceCommander.js";
 
 export class Goat {
   constructor() {
-    this.settings = null;
-    this.credentials = null;
-    this.topics = null;
+    this.settings = createDefaultSettings();
+    this.credentials = {};
+    this.topics = {};
     this.logger = null;
 
     this.cloudClient = null;
@@ -57,21 +57,38 @@ export class Goat {
     };
   }
 
-  async init() {
-    const { settings, credentials, topics } = await loadConfig();
-    this.settings = settings;
-    this.credentials = credentials;
-    this.topics = topics;
+  async init({ settings = null, credentials = null, topics = null } = {}) {
+    const hasCredentialsOverride = credentials && Object.keys(credentials).length > 0;
+    const hasTopicsOverride = topics && Object.keys(topics).length > 0;
+
+    const loaded = await loadConfig({
+      requireCredentials: !hasCredentialsOverride,
+      requireTopics: !hasTopicsOverride
+    });
+
+    this.settings = {
+      ...createDefaultSettings(),
+      ...(loaded.settings || {}),
+      ...(settings || {})
+    };
+    this.credentials = {
+      ...(loaded.credentials || {}),
+      ...(credentials || {})
+    };
+    this.topics = {
+      ...(loaded.topics || {}),
+      ...(topics || {})
+    };
 
     this.logger = createLogger({
-      enableLogging: settings.enableLogging === true,
-      logConnection: settings.logConnection === true
+      enableLogging: this.settings.enableLogging === true,
+      logConnection: this.settings.logConnection === true
     });
 
   }
 
   async connect() {
-    if (!this.settings) {
+    if (!this.logger || !this.credentials || Object.keys(this.credentials).length === 0) {
       throw new Error("GOAT not initialized. Call init() first.");
     }
 
@@ -114,10 +131,12 @@ export class Goat {
     });
 
     const sessionCredentials = await this.cloudClient.getSessionCredentials();
+    const hasTopicConfig = this.topics && Object.keys(this.topics).length > 0;
+
     this.mqttClient = new GoatMqttClient({
       logger: this.logger,
       logRaw: this.settings.logRawMqtt === true,
-      rawTopicFilter: (fullTopic) => this.topicCollector.shouldLogPayloadTopic(fullTopic),
+      rawTopicFilter: hasTopicConfig ? (fullTopic) => this.topicCollector.shouldLogPayloadTopic(fullTopic) : null,
       logTrafficToFile: this.settings.logMqttTrafficToFile === true,
       trafficLogFilePath: this.settings.mqttTrafficLogFile || "mqtt_traffic.log"
     });
@@ -573,6 +592,75 @@ export class Goat {
     if (this.callbacks[event]) {
       this.callbacks[event].push(callback);
     }
+  }
+
+  applyRuntimeLogSettings() {
+    if (this.logger?.setOptions) {
+      this.logger.setOptions({
+        enableLogging: this.settings.enableLogging === true,
+        logConnection: this.settings.logConnection === true
+      });
+    }
+
+    if (this.topicCollector) {
+      this.topicCollector.logDiscovery = this.settings.logDiscovery === true;
+      this.topicCollector.logBinaryTopics = this.settings.logBinaryTopics === true;
+    }
+
+    if (this.mqttClient) {
+      this.mqttClient.logRaw = this.settings.logRawMqtt === true;
+      this.mqttClient.logTrafficToFile = this.settings.logMqttTrafficToFile === true;
+      this.mqttClient.trafficLogFilePath = this.settings.mqttTrafficLogFile || "mqtt_traffic.log";
+      this.mqttClient.rawTopicFilter =
+        this.topics && Object.keys(this.topics).length > 0
+          ? (fullTopic) => this.topicCollector?.shouldLogPayloadTopic(fullTopic)
+          : null;
+    }
+  }
+
+  setEnableLogging(enabled) {
+    this.settings.enableLogging = Boolean(enabled);
+    this.applyRuntimeLogSettings();
+    return this;
+  }
+
+  setLogConnection(enabled) {
+    this.settings.logConnection = Boolean(enabled);
+    this.applyRuntimeLogSettings();
+    return this;
+  }
+
+  setLogRawMqtt(enabled) {
+    this.settings.logRawMqtt = Boolean(enabled);
+    this.applyRuntimeLogSettings();
+    return this;
+  }
+
+  setLogMqttTrafficToFile(enabled) {
+    this.settings.logMqttTrafficToFile = Boolean(enabled);
+    this.applyRuntimeLogSettings();
+    return this;
+  }
+
+  setMqttTrafficLogFile(filePath) {
+    if (typeof filePath !== "string" || filePath.trim().length === 0) {
+      throw new Error("setMqttTrafficLogFile requires a non-empty file path string.");
+    }
+    this.settings.mqttTrafficLogFile = filePath;
+    this.applyRuntimeLogSettings();
+    return this;
+  }
+
+  setLogDiscovery(enabled) {
+    this.settings.logDiscovery = Boolean(enabled);
+    this.applyRuntimeLogSettings();
+    return this;
+  }
+
+  setLogBinaryTopics(enabled) {
+    this.settings.logBinaryTopics = Boolean(enabled);
+    this.applyRuntimeLogSettings();
+    return this;
   }
 
   off(event, callback) {
