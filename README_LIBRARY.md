@@ -257,10 +257,17 @@ goat.getSleep()         // boolean
 goat.getVolume()        // { volume, fallVolume, searchVolume }
 goat.getLifeSpan()      // { blade: { left, total }, lensBrush: { left, total } }
 goat.getTotalStats()    // { area, time, count }
+goat.getStats()         // getStats/onStats payload
+goat.getLastTimeStats() // getLastTimeStats/onLastTimeStats payload
 goat.getNetInfo()       // { ip, ssid, rssi, wkVer, mac }
 goat.getMapState()      // { state, expandState }
 goat.getChargeState()   // { isCharging, mode }
+goat.getChargeInfo()    // getChargeInfo/onChargeInfo payload
 goat.getError()         // [error codes] or null
+goat.getProtectState()  // getProtectState/onProtectState payload
+goat.getAreaSet()       // getAreaSet/onAreaSet payload
+goat.getAreaParameter() // getAreaParameter/onAreaParameter payload
+goat.getGeolocation()   // { enable, geoLocation: { longitude, latitude } }
 goat.getMowInfo()       // { state, type, trigger, cleanState }
 goat.getMowState()      // 'mow' | 'dock' | ... | null
 goat.getMowCommand()    // { act, type, value, parsed, ts } or null
@@ -317,8 +324,32 @@ goat.on('chargeState', (state) => {
   console.log(`Charging: ${state.isCharging}, mode: ${state.mode}`);
 });
 
+goat.on('chargeInfo', (info) => {
+  console.log('Charge info update', info);
+});
+
 goat.on('error', (codes) => {
-  console.log(`Device error: [${codes.join(', ')}]`);
+  console.log('Device error', codes);
+});
+
+goat.on('stats', (stats) => {
+  console.log('Stats update', stats);
+});
+
+goat.on('lastTimeStats', (stats) => {
+  console.log('Last-time stats update', stats);
+});
+
+goat.on('protectState', (state) => {
+  console.log('Protect state update', state);
+});
+
+goat.on('areaSet', (areaSet) => {
+  console.log('Area set update', areaSet);
+});
+
+goat.on('areaParameter', (params) => {
+  console.log('Area parameter update', params);
 });
 
 goat.on('disconnected', () => {
@@ -329,6 +360,30 @@ goat.on('disconnected', () => {
 goat.off('battery', callbackFunction);
 ```
 
+Available callback events:
+- `connected`
+- `disconnected`
+- `position`
+- `battery`
+- `sleep`
+- `volume`
+- `lifeSpan`
+- `totalStats`
+- `stats`
+- `lastTimeStats`
+- `netInfo`
+- `mapState`
+- `mowInfo`
+- `mowState`
+- `mowCommand`
+- `chargeState`
+- `chargeInfo`
+- `error`
+- `protectState`
+- `areaSet`
+- `areaParameter`
+- `geolocation`
+
 ##### Disconnect
 
 ```javascript
@@ -337,7 +392,7 @@ await goat.disconnect();
 
 Closes MQTT connection and triggers `disconnected` event.
 
-On connect, the device now polls initial battery, position, clean state, charge state, net info, sleep, and lifespan immediately so the first callbacks can fire with a real baseline instead of waiting for the next spontaneous MQTT update.
+On connect, the device now polls initial battery, position, clean state, charge state, charge info, error, stats, last-time stats, protect state, area set, area parameter, net info, sleep, volume, and lifespan immediately so the first callbacks can fire with a real baseline instead of waiting for the next spontaneous MQTT update.
 
 ##### Runtime Debug Toggle Methods
 

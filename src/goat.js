@@ -29,11 +29,17 @@ export class Goat {
       volume: null,    // { volume, fallVolume, searchVolume }
       lifeSpan: null,   // { blade: { left, total }, lensBrush: { left, total } }
       totalStats: null, // { area, time, count }
+      stats: null,      // getStats / onStats payload
+      lastTimeStats: null, // getLastTimeStats / onLastTimeStats payload
       netInfo: null,    // { ip, ssid, rssi, wkVer, mac }
       mapState: null,   // { state, expandState }
       mowInfo: null,    // { trigger, other, state, type, cleanState }
       chargeState: null,// { isCharging, mode }
+      chargeInfo: null, // getChargeInfo / onChargeInfo payload
       error: null,      // error code array e.g. [0]
+      protectState: null, // getProtectState / onProtectState payload
+      areaSet: null,    // getAreaSet / onAreaSet payload
+      areaParameter: null, // getAreaParameter / onAreaParameter payload
       geolocation: null, // { enable, geoLocation: { longitude, latitude } }
       mowCommand: null  // { act, type, value, content, parsed, ts }
     };
@@ -46,12 +52,18 @@ export class Goat {
       volume: [],
       lifeSpan: [],
       totalStats: [],
+      stats: [],
+      lastTimeStats: [],
       netInfo: [],
       mapState: [],
       mowInfo: [],
       mowState: [],
       chargeState: [],
+      chargeInfo: [],
       error: [],
+      protectState: [],
+      areaSet: [],
+      areaParameter: [],
       geolocation: [],
       mowCommand: [],
       connected: [],
@@ -319,21 +331,75 @@ export class Goat {
 
       if (topicName === "getChargeState" || topicName === "onChargeState") {
         const data = payload?.body?.data;
-        if (data && typeof data.isCharging !== "undefined") {
-          const prev = this.state.chargeState;
-          if (prev && prev.isCharging === data.isCharging && prev.mode === data.mode) return;
-          this.state.chargeState = { isCharging: data.isCharging, mode: data.mode };
+        if (data) {
+          const next = {
+            isCharging: data.isCharging,
+            mode: data.mode,
+            ...data
+          };
+          if (this.jsonEqual(this.state.chargeState, next)) return;
+          this.state.chargeState = next;
           this.callCallback("chargeState", this.state.chargeState);
+        }
+      }
+
+      if (topicName === "getChargeInfo" || topicName === "onChargeInfo") {
+        const data = this.getTopicData(topicName, payload);
+        if (data && !this.jsonEqual(this.state.chargeInfo, data)) {
+          this.state.chargeInfo = data;
+          this.callCallback("chargeInfo", this.state.chargeInfo);
         }
       }
 
       if (topicName === "getError" || topicName === "onError") {
         const data = payload?.body?.data;
-        if (data && Array.isArray(data.code)) {
-          const newCode = JSON.stringify(data.code);
-          if (JSON.stringify(this.state.error) === newCode) return;
-          this.state.error = data.code;
+        if (data && typeof data !== "undefined") {
+          const nextError = Array.isArray(data?.code)
+            ? data.code
+            : (typeof data?.code !== "undefined" ? data.code : data);
+          if (this.jsonEqual(this.state.error, nextError)) return;
+          this.state.error = nextError;
           this.callCallback("error", this.state.error);
+        }
+      }
+
+      if (topicName === "getStats" || topicName === "onStats") {
+        const data = this.getTopicData(topicName, payload);
+        if (data && !this.jsonEqual(this.state.stats, data)) {
+          this.state.stats = data;
+          this.callCallback("stats", this.state.stats);
+        }
+      }
+
+      if (topicName === "getLastTimeStats" || topicName === "onLastTimeStats") {
+        const data = this.getTopicData(topicName, payload);
+        if (data && !this.jsonEqual(this.state.lastTimeStats, data)) {
+          this.state.lastTimeStats = data;
+          this.callCallback("lastTimeStats", this.state.lastTimeStats);
+        }
+      }
+
+      if (topicName === "getProtectState" || topicName === "onProtectState") {
+        const data = this.getTopicData(topicName, payload);
+        if (data && !this.jsonEqual(this.state.protectState, data)) {
+          this.state.protectState = data;
+          this.callCallback("protectState", this.state.protectState);
+        }
+      }
+
+      if (topicName === "getAreaSet" || topicName === "onAreaSet") {
+        const data = this.getTopicData(topicName, payload);
+        if (data && !this.jsonEqual(this.state.areaSet, data)) {
+          this.state.areaSet = data;
+          this.callCallback("areaSet", this.state.areaSet);
+        }
+      }
+
+      if (topicName === "getAreaParameter" || topicName === "onAreaParameter") {
+        const data = this.getTopicData(topicName, payload);
+        if (data && !this.jsonEqual(this.state.areaParameter, data)) {
+          this.state.areaParameter = data;
+          this.callCallback("areaParameter", this.state.areaParameter);
         }
       }
 
@@ -432,6 +498,28 @@ export class Goat {
       newVolume.fallVolume === this.state.volume.fallVolume &&
       newVolume.searchVolume === this.state.volume.searchVolume
     );
+  }
+
+  jsonEqual(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  getTopicData(topicName, payload) {
+    const fallback = payload?.body?.data;
+    if (!this.topicCollector || !topicName) {
+      return fallback;
+    }
+
+    try {
+      const parsed = this.topicCollector.parseTopicPayload(topicName, payload);
+      if (parsed !== null && typeof parsed !== "undefined") {
+        return parsed;
+      }
+    } catch {
+      // Keep fallback payload on parser errors.
+    }
+
+    return fallback;
   }
 
   toMowState(stateValue) {
@@ -740,6 +828,14 @@ export class Goat {
     return this.state.totalStats;
   }
 
+  getStats() {
+    return this.state.stats;
+  }
+
+  getLastTimeStats() {
+    return this.state.lastTimeStats;
+  }
+
   getNetInfo() {
     return this.state.netInfo;
   }
@@ -764,8 +860,24 @@ export class Goat {
     return this.state.chargeState;
   }
 
+  getChargeInfo() {
+    return this.state.chargeInfo;
+  }
+
   getError() {
     return this.state.error;
+  }
+
+  getProtectState() {
+    return this.state.protectState;
+  }
+
+  getAreaSet() {
+    return this.state.areaSet;
+  }
+
+  getAreaParameter() {
+    return this.state.areaParameter;
   }
 
   getGeolocation() {
