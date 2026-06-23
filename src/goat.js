@@ -17,6 +17,7 @@ export class Goat {
     this.topicCollector = null;
     this.commander = null;
 
+    this.deviceId = null;  // Target device ID for MQTT connection
     this.device = null;
     this.runtimeMs = null;
 
@@ -109,11 +110,19 @@ export class Goat {
       return allowedDeviceClasses.includes(String(d.class || "").trim());
     });
 
-    if (mqttDevices.length === 0) {
-      throw new Error("No matching MQTT devices found.");
+    // If specific deviceId is set, find that exact device
+    if (this.deviceId) {
+      this.device = mqttDevices.find((d) => d.did === this.deviceId);
+      if (!this.device) {
+        throw new Error(`Target device ${this.deviceId} not found or not a supported Goat device.`);
+      }
+    } else {
+      // Otherwise use the first matching device
+      if (mqttDevices.length === 0) {
+        throw new Error("No matching MQTT devices found.");
+      }
+      this.device = mqttDevices[0];
     }
-
-    this.device = mqttDevices[0];
 
     this.topicCollector = new TopicCollector({
       topicsConfig: this.topics,

@@ -190,6 +190,7 @@ export class EcovacsGoatAdapter {
 
     const goat = new Goat();
     goat.cloudClient = this.cloudClient;
+    goat.deviceId = deviceId;  // Store target device ID
 
     const { settings, topics } = await loadConfig({
       requireCredentials: false,
@@ -206,7 +207,6 @@ export class EcovacsGoatAdapter {
     };
     goat.topics = topics || {};
     goat.logger = this.logger;
-    goat.device = device;
 
     return goat;
   }
