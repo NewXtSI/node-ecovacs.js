@@ -183,8 +183,18 @@ export class EcovacsGoatAdapter {
     }
 
     const allowedClasses = normalizeDeviceClasses(this.goatSettings.deviceClasses);
-    if (allowedClasses.length === 0 || !allowedClasses.includes(String(device.class || "").trim())) {
-      throw new Error(`Device is not a Goat/Lawnmower: ${device.class}`);
+    const deviceClass = String(device.class || "").trim();
+
+    if (allowedClasses.length === 0) {
+      throw new Error(
+        `No allowed Goat device classes configured. Set settings.deviceClasses to include the target class (for example: "2px96q"). Current device class: ${deviceClass}`
+      );
+    }
+
+    if (!allowedClasses.includes(deviceClass)) {
+      throw new Error(
+        `Device class "${deviceClass}" is not allowed. Allowed Goat classes: ${allowedClasses.join(", ")}`
+      );
     }
 
     const goat = new Goat();
