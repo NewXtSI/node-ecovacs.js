@@ -4,18 +4,15 @@ import { createLogger } from "./logger.js";
 import { createDefaultSettings, loadConfig } from "./config.js";
 import { randomUUID } from "node:crypto";
 
+// Supported Goat device classes
+const SUPPORTED_GOAT_CLASSES = ["2px96q"];
+
 function createClientDeviceId() {
   return randomUUID().replace(/-/g, "");
 }
 
-function normalizeDeviceClasses(deviceClasses) {
-  if (!Array.isArray(deviceClasses)) {
-    return [];
-  }
-
-  return deviceClasses
-    .map((entry) => String(entry || "").trim())
-    .filter((entry) => entry.length > 0);
+function normalizeDeviceClasses() {
+  return [...SUPPORTED_GOAT_CLASSES];
 }
 
 export class EcovacsGoatAdapter {
@@ -108,6 +105,10 @@ export class EcovacsGoatAdapter {
     return this;
   }
 
+  getAllowedDeviceClasses() {
+    return normalizeDeviceClasses();
+  }
+
   async connect() {
     this.validateCredentials();
 
@@ -148,12 +149,8 @@ export class EcovacsGoatAdapter {
     }
 
     const allDevices = await this.cloudClient.getDevices();
-    const allowedClasses = normalizeDeviceClasses(this.goatSettings.deviceClasses);
+    const allowedClasses = normalizeDeviceClasses();
     const goatDevices = allDevices.mqtt.filter((device) => {
-      if (allowedClasses.length === 0) {
-        return false;
-      }
-
       return allowedClasses.includes(String(device.class || "").trim());
     });
 
@@ -182,18 +179,12 @@ export class EcovacsGoatAdapter {
       throw new Error(`Device not found: ${deviceId}`);
     }
 
-    const allowedClasses = normalizeDeviceClasses(this.goatSettings.deviceClasses);
+    const allowedClasses = normalizeDeviceClasses();
     const deviceClass = String(device.class || "").trim();
-
-    if (allowedClasses.length === 0) {
-      throw new Error(
-        `No allowed Goat device classes configured. Set settings.deviceClasses to include the target class (for example: "2px96q"). Current device class: ${deviceClass}`
-      );
-    }
 
     if (!allowedClasses.includes(deviceClass)) {
       throw new Error(
-        `Device class "${deviceClass}" is not allowed. Allowed Goat classes: ${allowedClasses.join(", ")}`
+        `Device class "${deviceClass}" is not supported. Supported Goat classes: ${allowedClasses.join(", ")}`
       );
     }
 
