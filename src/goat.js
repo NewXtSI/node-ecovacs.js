@@ -102,27 +102,43 @@ export class Goat {
     const allowedDeviceClasses = Array.isArray(this.settings.deviceClasses)
       ? this.settings.deviceClasses.map((entry) => String(entry || "").trim()).filter((entry) => entry.length > 0)
       : [];
-    const mqttDevices = devices.mqtt.filter((d) => {
-      if (allowedDeviceClasses.length === 0) {
-        return false;
-      }
 
-      return allowedDeviceClasses.includes(String(d.class || "").trim());
-    });
+    // Search all devices (not just mqtt category) for more robustness
+    const allDevices = devices.all || [];
+    
+    let targetDevice = null;
 
-    // If specific deviceId is set, find that exact device
     if (this.deviceId) {
-      this.device = mqttDevices.find((d) => d.did === this.deviceId);
-      if (!this.device) {
-        throw new Error(`Target device ${this.deviceId} not found or not a supported Goat device.`);
+      // Find the specific device by ID
+      targetDevice = allDevices.find((d) => d.did === this.deviceId);
+      if (!targetDevice) {
+        throw new Error(`Target device ${this.deviceId} not found.`);
+      }
+      
+      // Verify it's a supported class
+      const deviceClass = String(targetDevice.class || "").trim();
+      if (allowedDeviceClasses.length > 0 && !allowedDeviceClasses.includes(deviceClass)) {
+        throw new Error(
+          `Target device class "${deviceClass}" is not a supported Goat device. Allowed: ${allowedDeviceClasses.join(", ")}`
+        );
       }
     } else {
-      // Otherwise use the first matching device
-      if (mqttDevices.length === 0) {
+      // Otherwise find the first matching device
+      const matchingDevices = allDevices.filter((d) => {
+        if (allowedDeviceClasses.length === 0) {
+          return false;
+        }
+        return allowedDeviceClasses.includes(String(d.class || "").trim());
+      });
+
+      if (matchingDevices.length === 0) {
         throw new Error("No matching MQTT devices found.");
       }
-      this.device = mqttDevices[0];
+      
+      targetDevice = matchingDevices[0];
     }
+
+    this.device = targetDevice;
 
     this.topicCollector = new TopicCollector({
       topicsConfig: this.topics,
