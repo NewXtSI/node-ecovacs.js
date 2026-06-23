@@ -65,6 +65,7 @@ console.log(goat.getPosition());    // { x, y, a }
 console.log(goat.getBattery());     // 85 (percentage)
 console.log(goat.getChargeState()); // { isCharging: 0, mode: 'slot' }
 console.log(goat.getMowInfo());     // { state: 'mow', type: 'spotArea', ... }
+console.log(goat.getMowState());    // 'mow'
 
 // Listen for state changes
 goat.on('battery', (battery) => {
@@ -73,6 +74,10 @@ goat.on('battery', (battery) => {
 
 goat.on('position', (pos) => {
   console.log(`Position: x=${pos.x}, y=${pos.y}, a=${pos.a}`);
+});
+
+goat.on('mowState', (state) => {
+  console.log(`Mow state: ${state}`);
 });
 
 // Control the device
@@ -257,6 +262,7 @@ goat.getMapState()      // { state, expandState }
 goat.getChargeState()   // { isCharging, mode }
 goat.getError()         // [error codes] or null
 goat.getMowInfo()       // { state, type, trigger, cleanState }
+goat.getMowState()      // 'mow' | 'dock' | ... | null
 goat.getMowCommand()    // { act, type, value, parsed, ts } or null
 ```
 
@@ -295,6 +301,10 @@ goat.on('battery', (percentage) => {
   console.log(`Battery: ${percentage}%`);
 });
 
+goat.on('mowState', (state) => {
+  console.log(`Mow state: ${state}`);
+});
+
 goat.on('mowInfo', (info) => {
   console.log(`Mowing: ${info.state}, type: ${info.type}`);
 });
@@ -326,6 +336,8 @@ await goat.disconnect();
 ```
 
 Closes MQTT connection and triggers `disconnected` event.
+
+On connect, the device now polls initial battery, position, clean state, charge state, net info, sleep, and lifespan immediately so the first callbacks can fire with a real baseline instead of waiting for the next spontaneous MQTT update.
 
 ##### Runtime Debug Toggle Methods
 

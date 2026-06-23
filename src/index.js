@@ -133,14 +133,11 @@ async function main() {
       });
     }
 
-    // Poll all MQTT devices once to trigger ATR responses.
-    // Waits briefly so subscriptions are confirmed before requests go out.
+    // Poll all MQTT devices once to trigger ATR responses immediately after subscribe.
     const commander = new DeviceCommander({ cloudClient, logger });
-    setTimeout(async () => {
-      for (const device of mqttDevices) {
-        await commander.pollDeviceState(device);
-      }
-    }, 1500);
+    for (const device of mqttDevices) {
+      void commander.pollDeviceState(device);
+    }
   } else {
     logger.warn("No matching MQTT devices after filter. Check settings.deviceClasses.");
   }

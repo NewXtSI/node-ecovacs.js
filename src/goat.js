@@ -48,6 +48,7 @@ export class Goat {
       netInfo: [],
       mapState: [],
       mowInfo: [],
+      mowState: [],
       chargeState: [],
       error: [],
       geolocation: [],
@@ -158,10 +159,8 @@ export class Goat {
 
     this.commander = new DeviceCommander({ cloudClient: this.cloudClient, logger: this.logger });
 
-    // Poll device state
-    setTimeout(async () => {
-      await this.commander.pollDeviceState(this.device);
-    }, 1500);
+    // Poll device state immediately so battery / clean state / position are hydrated right away.
+    void this.commander.pollDeviceState(this.device);
 
     this.callCallback("connected");
 
@@ -282,6 +281,9 @@ export class Goat {
             cleanState: data.cleanState ?? null
           };
           this.callCallback("mowInfo", this.state.mowInfo);
+          if (!prev || prev.state !== nextState) {
+            this.callCallback("mowState", nextState);
+          }
         }
       }
 
@@ -718,6 +720,10 @@ export class Goat {
 
   getMowInfo() {
     return this.state.mowInfo;
+  }
+
+  getMowState() {
+    return this.state.mowInfo?.state ?? null;
   }
 
   getMowCommand() {
