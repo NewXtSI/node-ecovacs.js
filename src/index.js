@@ -81,11 +81,15 @@ async function main() {
   let mqttClient = null;
 
   const mqttDevices = devices.mqtt.filter((d) => {
-    if (!settings.deviceClasses || settings.deviceClasses.length === 0) {
-      return true;
+    const allowedDeviceClasses = Array.isArray(settings.deviceClasses)
+      ? settings.deviceClasses.map((entry) => String(entry || "").trim()).filter((entry) => entry.length > 0)
+      : [];
+
+    if (allowedDeviceClasses.length === 0) {
+      return false;
     }
 
-    return settings.deviceClasses.includes(d.class);
+    return allowedDeviceClasses.includes(String(d.class || "").trim());
   });
 
   if (mqttDevices.length < devices.mqtt.length) {

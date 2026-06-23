@@ -58,7 +58,7 @@ npm start
 - `mqttTrafficLogFile` — target file for JSONL traffic logs
 - `logDiscovery` — log auto-discovered topics
 - `logBinaryTopics` — emit chunk progress and LZMA decode diagnostics for binary blob topics
-- `deviceClasses` — whitelist of device class IDs to connect to (empty = all)
+- `deviceClasses` — exact class allowlist used to select MQTT devices (for this Goat, usually `2px96q`)
 
 Example:
 
@@ -72,11 +72,11 @@ Example:
   "mqttTrafficLogFile": "mqtt_traffic.log",
   "logDiscovery": true,
   "logBinaryTopics": true,
-  "deviceClasses": []
+  "deviceClasses": ["2px96q"]
 }
 ```
 
-`deviceClasses` uses the `class` field from the device list response. Devices not in the list are skipped with a log line showing what was filtered out.
+`deviceClasses` uses the exact `class` field from the device list response. Devices whose class is not listed are skipped with a log line showing what was filtered out.
 
 [2] Connect to Ecovacs cloud using `credentials.json`:
 - login API call

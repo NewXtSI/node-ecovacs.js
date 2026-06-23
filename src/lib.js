@@ -8,6 +8,16 @@ function createClientDeviceId() {
   return randomUUID().replace(/-/g, "");
 }
 
+function normalizeDeviceClasses(deviceClasses) {
+  if (!Array.isArray(deviceClasses)) {
+    return [];
+  }
+
+  return deviceClasses
+    .map((entry) => String(entry || "").trim())
+    .filter((entry) => entry.length > 0);
+}
+
 export class EcovacsGoatAdapter {
   constructor(credentials = {}) {
     this.credentials = {
@@ -138,9 +148,13 @@ export class EcovacsGoatAdapter {
     }
 
     const allDevices = await this.cloudClient.getDevices();
+    const allowedClasses = normalizeDeviceClasses(this.goatSettings.deviceClasses);
     const goatDevices = allDevices.mqtt.filter((device) => {
-      const deviceClass = String(device.class || "").toLowerCase();
-      return deviceClass.includes("goat") || deviceClass.includes("lawnmower");
+      if (allowedClasses.length === 0) {
+        return false;
+      }
+
+      return allowedClasses.includes(String(device.class || "").trim());
     });
 
     return goatDevices.map((device) => ({
@@ -168,8 +182,8 @@ export class EcovacsGoatAdapter {
       throw new Error(`Device not found: ${deviceId}`);
     }
 
-    const deviceClass = String(device.class || "").toLowerCase();
-    if (!deviceClass.includes("goat") && !deviceClass.includes("lawnmower")) {
+    const allowedClasses = normalizeDeviceClasses(this.goatSettings.deviceClasses);
+    if (allowedClasses.length === 0 || !allowedClasses.includes(String(device.class || "").trim())) {
       throw new Error(`Device is not a Goat/Lawnmower: ${device.class}`);
     }
 

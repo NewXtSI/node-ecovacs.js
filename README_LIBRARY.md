@@ -392,9 +392,11 @@ Supported files:
      "runtimeSeconds": 0,
      "logDiscovery": true,
      "logBinaryTopics": true,
-     "deviceClasses": []
+    "deviceClasses": ["2px96q"]
    }
    ```
+
+  `deviceClasses` is an exact class allowlist. For the Goat device in this project, use `"2px96q"`.
 
 3. **topics.json** - MQTT topic configuration (auto-generated)
 

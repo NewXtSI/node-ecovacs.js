@@ -97,11 +97,15 @@ export class Goat {
     await this.cloudClient.connect();
 
     const devices = await this.cloudClient.getDevices();
+    const allowedDeviceClasses = Array.isArray(this.settings.deviceClasses)
+      ? this.settings.deviceClasses.map((entry) => String(entry || "").trim()).filter((entry) => entry.length > 0)
+      : [];
     const mqttDevices = devices.mqtt.filter((d) => {
-      if (!this.settings.deviceClasses || this.settings.deviceClasses.length === 0) {
-        return true;
+      if (allowedDeviceClasses.length === 0) {
+        return false;
       }
-      return this.settings.deviceClasses.includes(d.class);
+
+      return allowedDeviceClasses.includes(String(d.class || "").trim());
     });
 
     if (mqttDevices.length === 0) {
