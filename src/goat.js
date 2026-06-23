@@ -61,11 +61,10 @@ export class Goat {
   async init({ settings = null, credentials = null, topics = null } = {}) {
     const hasCredentialsAlready = this.credentials && Object.keys(this.credentials).length > 0;
     const hasCredentialsOverride = credentials && Object.keys(credentials).length > 0;
-    const hasTopicsOverride = topics && Object.keys(topics).length > 0;
 
     const loaded = await loadConfig({
       requireCredentials: !hasCredentialsOverride && !hasCredentialsAlready,
-      requireTopics: !hasTopicsOverride
+      requireTopics: false
     });
 
     this.settings = {
