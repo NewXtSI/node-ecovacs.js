@@ -5,6 +5,10 @@ const RUN_SETTER_TESTS = ["1", "true", "yes", "on"].includes(
   String(process.env.API2_RUN_SETTER_TESTS || "").trim().toLowerCase()
 );
 
+const LOG_POS_PAYLOADS = !["0", "false", "no", "off"].includes(
+  String(process.env.API2_LOG_POS_PAYLOADS || "1").trim().toLowerCase()
+);
+
 const LISTEN_SECONDS = (() => {
   const parsed = Number(process.env.API2_LISTEN_SECONDS);
   if (!Number.isFinite(parsed)) return 30;
@@ -166,6 +170,12 @@ async function main() {
     device.on("position", (data) => {
       console.log(`[${device.name}] position:`, data);
     });
+
+    if (LOG_POS_PAYLOADS) {
+      device.on("_rawPosPayload", ({ topicName, data }) => {
+        console.log(`[${device.name}] POS RAW ${topicName}:`, data);
+      });
+    }
 
     device.on("chargeState", (data) => {
       console.log(`[${device.name}] chargeState:`, data);

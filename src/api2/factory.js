@@ -296,6 +296,18 @@ export class Api2Factory {
       }
 
       const data = payload?.body?.data ?? null;
+
+      // Temporary diagnostics: expose raw position payloads so consumers can
+      // inspect all coordinate blocks (robot/dock/rtk/...) during rollout.
+      if (topicName === "getPos" || topicName === "onPos") {
+        device.emit("_rawPosPayload", {
+          fullTopic,
+          topicName,
+          data,
+          payload
+        });
+      }
+
       device._ingestTopicData(topicName, data);
     });
 
