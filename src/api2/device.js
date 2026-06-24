@@ -22,7 +22,9 @@ export class Api2Device extends EventEmitter {
     // Internal state store.  Each property starts as UNSET (never received)
     // so the first ingested value always triggers an event even if it is null.
     this._state = {
-      stats: UNSET
+      stats: UNSET,          // { time, area, mowedArea }
+      lastTimeStats: UNSET,  // { cid, start, type, stop, area, time }
+      totalStats: UNSET      // { area, time, count }
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -92,19 +94,29 @@ export class Api2Device extends EventEmitter {
     return this.rawDevice.product_category || null;
   }
 
-  // ─── State: stats ─────────────────────────────────────────────────────────
+  // ─── State: stats / lastTimeStats / totalStats ──────────────────────────
 
-  /**
-   * Returns the current stats state or null if not yet received.
-   * If no value has arrived yet, automatically triggers a device request
-   * (lazy load).  The result will arrive later via the 'stats' event.
-   */
+  /** Returns current stats or null; auto-polls via getStats if not yet received. */
   getStats() {
-    const current = this._state.stats === UNSET ? null : this._state.stats;
-    if (this._state.stats === UNSET) {
-      this._requestData("getStats");
+    return this._getOrRequest("stats");
+  }
+
+  /** Returns current lastTimeStats or null; auto-polls via getLastTimeStats if not yet received. */
+  getLastTimeStats() {
+    return this._getOrRequest("lastTimeStats");
+  }
+
+  /** Returns current totalStats or null; auto-polls via getTotalStats if not yet received. */
+  getTotalStats() {
+    return this._getOrRequest("totalStats");
+  }
+
+  /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */
+  _getOrRequest(key) {
+    if (this._state[key] === UNSET) {
+      this._requestData(this._commandForState(key));
     }
-    return current;
+    return this._state[key] === UNSET ? null : this._state[key];
   }
 
   // ─── Internal: state management ──────────────────────────────────────────
@@ -119,6 +131,13 @@ export class Api2Device extends EventEmitter {
       case "getStats":
       case "onStats":
         this._updateState("stats", data);
+        break;
+      case "getLastTimeStats":
+      case "onLastTimeStats":
+        this._updateState("lastTimeStats", data);
+        break;
+      case "getTotalStats":
+        this._updateState("totalStats", data);
         break;
       default:
         // Emit a generic 'unknownTopic' event so the consumer can react if needed.
@@ -160,8 +179,11 @@ export class Api2Device extends EventEmitter {
    * @returns {string}
    */
   _commandForState(key) {
+    // Only needed for keys where the command name differs from get<Key>.
     const map = {
-      stats: "getStats"
+      stats: "getStats",
+      lastTimeStats: "getLastTimeStats",
+      totalStats: "getTotalStats"
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
   }

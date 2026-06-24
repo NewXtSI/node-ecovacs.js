@@ -65,10 +65,18 @@ async function main() {
       console.log(`[${device.name}] stats:`, data);
     });
 
-    // Explicitly call getStats() — returns null immediately (no data yet)
-    // and sends the real getStats command to the device over MQTT.
-    const current = device.getStats();
-    console.log(`getStats() returned immediately:`, current);
+    device.on("lastTimeStats", (data) => {
+      console.log(`[${device.name}] lastTimeStats:`, data);
+    });
+
+    device.on("totalStats", (data) => {
+      console.log(`[${device.name}] totalStats:`, data);
+    });
+
+    // Explicitly call all three getters.
+    console.log("getStats() =", device.getStats());
+    console.log("getLastTimeStats() =", device.getLastTimeStats());
+    console.log("getTotalStats() =", device.getTotalStats());
 
     // Wait for the reply to arrive via MQTT (onStats / getStats response).
     console.log("Waiting for stats reply…");
