@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { createLogger } from "../logger.js";
 import { EcovacsCloudClient } from "../services/ecovacsCloudClient.js";
+import { GoatMqttClient, buildDeviceTopics } from "../services/goatMqttClient.js";
+import { DeviceCommander } from "../services/deviceCommander.js";
 import { Api2Device } from "./device.js";
 
 const DEFAULT_DEBUG_FLAGS = {
@@ -58,6 +60,7 @@ export class Api2Factory {
     });
 
     this.cloudClient = null;
+    this.mqttClient = null;
     this.connected = false;
   }
 
@@ -219,7 +222,88 @@ export class Api2Factory {
     });
   }
 
+  /**
+   * Connects a device to MQTT, wires lazy-load commands, and routes incoming
+   * MQTT messages into device._ingestTopicData().
+   *
+   * A single shared MQTT client is created on first call and reused for
+   * subsequent devices connected via the same factory instance.
+   *
+   * @param {Api2Device} device
+   * @returns {Promise<Api2Device>}
+   */
+  async connectDevice(device) {
+    if (!this.connected || !this.cloudClient) {
+      throw new Error("Factory not connected. Call connect() first.");
+    }
+
+    // Create the shared MQTT client on first use.
+    if (!this.mqttClient) {
+      const session = await this.cloudClient.getSessionCredentials();
+      this.mqttClient = new GoatMqttClient({ logger: this.logger });
+      await this.mqttClient.connect({
+        deviceId: this.credentials.deviceId,
+        country: this.credentials.country,
+        continent: this.credentials.continent,
+        username: session.userId,
+        password: session.token,
+        overrideMqttUrl: this.credentials.overrideMqttUrl
+      });
+    }
+
+    const commander = new DeviceCommander({
+      cloudClient: this.cloudClient,
+      logger: this.logger
+    });
+
+    // Wire device lazy-load requests → real device commands.
+    device.on("_requestData", async (commandName) => {
+      try {
+        await commander.sendCommand(device.rawDevice, commandName);
+      } catch (error) {
+        this.logger.warn("Failed to send command", {
+          commandName,
+          error: error.message
+        });
+      }
+    });
+
+    // Subscribe to MQTT topics for this device and route messages.
+    const topicFilters = buildDeviceTopics(device.rawDevice);
+    this.mqttClient.subscribe(topicFilters, (fullTopic, payloadString) => {
+      // Topic format: iot/atr/{topicName}/... or iot/p2p/{topicName}/...
+      const topicName = fullTopic.split("/")[2] || null;
+      if (!topicName) return;
+
+      // Skip p2p "query" direction (/q/) only for getter commands — those are
+      // echoes of our own outgoing requests and carry no device response data.
+      // Set commands and others on /q/ may carry meaningful payload.
+      if (fullTopic.includes("/q/") && topicName.startsWith("get")) return;
+
+      let payload;
+      try {
+        payload = JSON.parse(payloadString);
+      } catch {
+        return;
+      }
+
+      const data = payload?.body?.data ?? null;
+      device._ingestTopicData(topicName, data);
+    });
+
+    this.logger.devices?.("Device connected to MQTT", {
+      id: device.id,
+      name: device.name
+    });
+
+    return device;
+  }
+
   async disconnect() {
+    if (this.mqttClient) {
+      this.mqttClient.close?.();
+      this.mqttClient = null;
+    }
     this.connected = false;
     this.cloudClient = null;
   }

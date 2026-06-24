@@ -36,23 +36,18 @@ async function main() {
     deviceId: credentials.deviceId,
     overrideMqttUrl: credentials.overrideMqttUrl,
     debugFlags: {
-      connection: true,
-      auth: true,
-      devices: true
+      connection: false,
+      auth: false,
+      devices: false
     }
   });
 
-  // Toggle debug flag at runtime.
-  factory.setDebugFlag("connection", "on");
-  factory.setDebugFlag("auth", "on");
-  factory.setDebugFlag("devices", "on");
-
   await factory.connect();
 
-  const devices = await factory.getDevices();
-  console.log(`Found ${devices.length} device(s):`);
+  const goatDevices = await factory.getGoatDevices();
+  console.log(`Found ${goatDevices.length} GOATBOT device(s):`);
 
-  for (const device of devices) {
+  for (const device of goatDevices) {
     console.log({
       id: device.id,
       name: device.name,
@@ -61,10 +56,24 @@ async function main() {
       productCategory: device.productCategory,
       isConnected: device.isConnected
     });
-  }
 
-  const goatDevices = await factory.getGoatDevices();
-  console.log(`Found ${goatDevices.length} GOATBOT device(s):`);
+    // Connect first — wires _requestData → DeviceCommander and subscribes MQTT.
+    await factory.connectDevice(device);
+
+    // Subscribe after connecting so the lazy-load request has a commander to use.
+    device.on("stats", (data) => {
+      console.log(`[${device.name}] stats:`, data);
+    });
+
+    // Explicitly call getStats() — returns null immediately (no data yet)
+    // and sends the real getStats command to the device over MQTT.
+    const current = device.getStats();
+    console.log(`getStats() returned immediately:`, current);
+
+    // Wait for the reply to arrive via MQTT (onStats / getStats response).
+    console.log("Waiting for stats reply…");
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+  }
 
   await factory.disconnect();
 }
