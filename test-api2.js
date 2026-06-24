@@ -40,6 +40,66 @@ function waitForEvent(target, eventName, timeoutMs = 7000) {
   });
 }
 
+function deepEqual(a, b) {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+function toNumberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function ensureCurrentState(device, getter, eventName, requestCommand = null) {
+  let value = getter();
+  if (value && typeof value === "object") {
+    return value;
+  }
+
+  if (requestCommand) {
+    await device.sendCommand(requestCommand);
+  }
+
+  value = await waitForEvent(device, eventName, 7000);
+  return value;
+}
+
+async function runSetterRoundtrip({
+  device,
+  label,
+  eventName,
+  getter,
+  requestCommand,
+  setter,
+  buildTarget,
+  timeoutMs = 7000
+}) {
+  const before = await ensureCurrentState(device, getter, eventName, requestCommand);
+  const target = buildTarget(before);
+
+  if (!target || typeof target !== "object") {
+    throw new Error(`${label}: target payload is invalid (${JSON.stringify(target)})`);
+  }
+
+  if (deepEqual(before, target)) {
+    throw new Error(`${label}: target equals current value, no effective change to test.`);
+  }
+
+  console.log(`[setter:${label}] before:`, before);
+  console.log(`[setter:${label}] target:`, target);
+
+  await setter(target);
+  const afterSet = await waitForEvent(device, eventName, timeoutMs);
+  console.log(`[setter:${label}] after set:`, afterSet);
+
+  await setter(before);
+  const afterRestore = await waitForEvent(device, eventName, timeoutMs);
+  console.log(`[setter:${label}] after restore:`, afterRestore);
+}
+
 async function main() {
   const credentials = await loadCredentials();
 
@@ -219,6 +279,93 @@ async function main() {
     console.log("obstacleHeight after restore:", afterRestore);
 
     console.log("Setter test completed.");
+
+    // Additional setter roundtrips for newly implemented API2 setters.
+    // Each block is isolated so one failing setter does not stop the others.
+    const setterTests = [
+      {
+        label: "cutHeight",
+        eventName: "cutHeight",
+        getter: () => device.getCutHeight(),
+        requestCommand: "getCutHeight",
+        setter: (value) => device.setCutHeight(value.level),
+        buildTarget: (before) => {
+          const level = toNumberOrNull(before?.level);
+          if (level === null) {
+            throw new Error(`cutHeight.level is not numeric: ${JSON.stringify(before)}`);
+          }
+          return { level: Math.max(0, level - 1) };
+        }
+      },
+      {
+        label: "cutDirection",
+        eventName: "cutDirection",
+        getter: () => device.getCutDirection(),
+        requestCommand: "getCutDirection",
+        setter: (value) => device.setCutDirection(value),
+        buildTarget: (before) => {
+          const angle = toNumberOrNull(before?.angle);
+          const set = toNumberOrNull(before?.set);
+          if (angle === null || set === null) {
+            throw new Error(`cutDirection payload invalid: ${JSON.stringify(before)}`);
+          }
+          return { angle: (angle + 1) % 360, set };
+        }
+      },
+      {
+        label: "rainDelay",
+        eventName: "rainDelay",
+        getter: () => device.getRainDelay(),
+        requestCommand: "getRainDelay",
+        setter: (value) => device.setRainDelay(value),
+        buildTarget: (before) => {
+          const delay = toNumberOrNull(before?.delay);
+          const enable = toNumberOrNull(before?.enable);
+          if (delay === null || enable === null) {
+            throw new Error(`rainDelay payload invalid: ${JSON.stringify(before)}`);
+          }
+          const nextDelay = delay >= 10 ? delay - 10 : delay + 10;
+          return { delay: nextDelay, enable };
+        }
+      },
+      {
+        label: "borderSwitch",
+        eventName: "borderSwitch",
+        getter: () => device.getBorderSwitch(),
+        requestCommand: "getBorderSwitch",
+        setter: (value) => device.setBorderSwitch(value),
+        buildTarget: (before) => {
+          const mode = toNumberOrNull(before?.mode);
+          const enable = toNumberOrNull(before?.enable);
+          if (mode === null || enable === null) {
+            throw new Error(`borderSwitch payload invalid: ${JSON.stringify(before)}`);
+          }
+
+          // Commonly observed modes are 1 and 2. Flip between them for a minimal roundtrip.
+          const nextMode = mode === 2 ? 1 : 2;
+          return { mode: nextMode, enable };
+        }
+      }
+    ];
+
+    for (const spec of setterTests) {
+      try {
+        console.log(`\n--- Setter roundtrip: ${spec.label} ---`);
+        await runSetterRoundtrip({
+          device,
+          label: spec.label,
+          eventName: spec.eventName,
+          getter: spec.getter,
+          requestCommand: spec.requestCommand,
+          setter: spec.setter,
+          buildTarget: spec.buildTarget,
+          timeoutMs: 9000
+        });
+        console.log(`[setter:${spec.label}] roundtrip successful`);
+      } catch (error) {
+        console.error(`[setter:${spec.label}] roundtrip FAILED:`, error.message);
+      }
+    }
   }
 
   await factory.disconnect();
