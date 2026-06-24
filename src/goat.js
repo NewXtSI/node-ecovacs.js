@@ -20,6 +20,11 @@ export class Goat {
     this.deviceId = null;  // Target device ID for MQTT connection
     this.device = null;
     this.runtimeMs = null;
+    this.rawCallbackFilter = {
+      whitelist: null,
+      blacklist: [],
+      unhandledOnly: true
+    };
 
     // State tracking - only notify on actual changes
     this.state = {
@@ -66,6 +71,7 @@ export class Goat {
       areaParameter: [],
       geolocation: [],
       mowCommand: [],
+      rawMessage: [],
       connected: [],
       disconnected: []
     };
@@ -216,10 +222,29 @@ export class Goat {
   }
 
   onTopicPayload(fullTopic, payloadString) {
-    try {
-      const payload = JSON.parse(payloadString);
-      const topicName = this.resolveTopicName(fullTopic);
+    const topicName = this.resolveTopicName(fullTopic);
+    let payload = null;
+    let parseError = null;
 
+    try {
+      payload = JSON.parse(payloadString);
+    } catch (error) {
+      parseError = error;
+    }
+
+    this.emitRawMessageCallback({
+      fullTopic,
+      topicName,
+      payloadString,
+      payload,
+      parseError
+    });
+
+    if (!payload) {
+      return;
+    }
+
+    try {
       if (topicName === "onPos" || topicName === "getPos") {
         const data = payload?.body?.data;
         if (data && data.deebotPos) {
@@ -476,6 +501,95 @@ export class Goat {
     } catch {
       // Silently ignore parse errors
     }
+  }
+
+  hasDedicatedTopicCallback(topicName) {
+    if (!topicName) {
+      return false;
+    }
+
+    return [
+      "onPos", "getPos",
+      "onBattery", "getBattery",
+      "onSleep", "getSleep",
+      "onVolume", "getVolume",
+      "getMapState",
+      "clean",
+      "onCleanInfo", "getCleanInfo",
+      "onChargeState", "getChargeState",
+      "onChargeInfo", "getChargeInfo",
+      "onError", "getError",
+      "onStats", "getStats",
+      "onLastTimeStats", "getLastTimeStats",
+      "onProtectState", "getProtectState",
+      "onAreaSet", "getAreaSet",
+      "onAreaParameter", "getAreaParameter",
+      "getGeolocation",
+      "getTotalStats",
+      "getNetInfo",
+      "getLifeSpan"
+    ].includes(topicName);
+  }
+
+  topicMatchesFilterEntry(entry, { topicName, fullTopic }) {
+    if (!entry || typeof entry !== "string") {
+      return false;
+    }
+
+    const normalizedEntry = entry.trim();
+    if (!normalizedEntry) {
+      return false;
+    }
+
+    return normalizedEntry === topicName || normalizedEntry === fullTopic;
+  }
+
+  shouldEmitRawMessage(topicName, fullTopic) {
+    const whitelist = this.rawCallbackFilter?.whitelist;
+    const blacklist = this.rawCallbackFilter?.blacklist || [];
+    const unhandledOnly = this.rawCallbackFilter?.unhandledOnly !== false;
+    const filterContext = { topicName, fullTopic };
+
+    if (unhandledOnly && this.hasDedicatedTopicCallback(topicName)) {
+      return false;
+    }
+
+    if (Array.isArray(whitelist) && whitelist.length > 0) {
+      const inWhitelist = whitelist.some((entry) => this.topicMatchesFilterEntry(entry, filterContext));
+      if (!inWhitelist) {
+        return false;
+      }
+    }
+
+    if (Array.isArray(blacklist) && blacklist.length > 0) {
+      const inBlacklist = blacklist.some((entry) => this.topicMatchesFilterEntry(entry, filterContext));
+      if (inBlacklist) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  emitRawMessageCallback({ fullTopic, topicName, payloadString, payload, parseError }) {
+    if (!this.callbacks.rawMessage || this.callbacks.rawMessage.length === 0) {
+      return;
+    }
+
+    if (!this.shouldEmitRawMessage(topicName, fullTopic)) {
+      return;
+    }
+
+    const rawMessage = {
+      topic: fullTopic,
+      topicName,
+      payloadRaw: payloadString,
+      payload,
+      parseError: parseError ? parseError.message : null,
+      ts: Date.now()
+    };
+
+    this.callCallback("rawMessage", rawMessage);
   }
 
   positionChanged(newPos) {
@@ -781,6 +895,45 @@ export class Goat {
     this.settings.logBinaryTopics = Boolean(enabled);
     this.applyRuntimeLogSettings();
     return this;
+  }
+
+  normalizeRawFilterArray(values) {
+    if (!Array.isArray(values)) {
+      return [];
+    }
+
+    return values
+      .map((entry) => String(entry || "").trim())
+      .filter((entry) => entry.length > 0);
+  }
+
+  setRawCallbackFilter({ whitelist = undefined, blacklist = undefined, unhandledOnly = undefined } = {}) {
+    if (typeof whitelist !== "undefined") {
+      const normalized = this.normalizeRawFilterArray(whitelist);
+      this.rawCallbackFilter.whitelist = normalized.length > 0 ? normalized : null;
+    }
+
+    if (typeof blacklist !== "undefined") {
+      this.rawCallbackFilter.blacklist = this.normalizeRawFilterArray(blacklist);
+    }
+
+    if (typeof unhandledOnly !== "undefined") {
+      this.rawCallbackFilter.unhandledOnly = Boolean(unhandledOnly);
+    }
+
+    return this;
+  }
+
+  setRawCallbackWhitelist(topics = []) {
+    return this.setRawCallbackFilter({ whitelist: topics });
+  }
+
+  setRawCallbackBlacklist(topics = []) {
+    return this.setRawCallbackFilter({ blacklist: topics });
+  }
+
+  setRawCallbackUnhandledOnly(enabled) {
+    return this.setRawCallbackFilter({ unhandledOnly: enabled });
   }
 
   off(event, callback) {

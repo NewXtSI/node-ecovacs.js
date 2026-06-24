@@ -352,6 +352,10 @@ goat.on('areaParameter', (params) => {
   console.log('Area parameter update', params);
 });
 
+goat.on('rawMessage', (msg) => {
+  console.log('Raw MQTT message', msg.topicName, msg.payloadRaw);
+});
+
 goat.on('disconnected', () => {
   console.log('Device disconnected');
 });
@@ -383,6 +387,65 @@ Available callback events:
 - `areaSet`
 - `areaParameter`
 - `geolocation`
+- `rawMessage`
+
+`rawMessage` payload shape:
+
+```javascript
+{
+  topic: string,        // Full MQTT topic
+  topicName: string,    // Short command name (e.g. onStats)
+  payloadRaw: string,   // Original MQTT payload string
+  payload: object|null, // Parsed JSON payload if available
+  parseError: string|null,
+  ts: number            // Unix ms timestamp
+}
+```
+
+By default, `rawMessage` is emitted only for topics without dedicated Goat state callbacks.
+Set `unhandledOnly: false` if you want to receive all MQTT messages.
+
+Topic filter methods:
+
+```javascript
+// Generic filter method
+goat.setRawCallbackFilter({
+  whitelist: ['onFwBuryPoint-bd_setting', 'iot/atr/onMapTrace/...'],
+  blacklist: ['onMapTrace'],
+  unhandledOnly: true
+});
+
+// Convenience methods
+goat.setRawCallbackWhitelist(['onFwBuryPoint-bd_basicinfo']);
+goat.setRawCallbackBlacklist(['onMapTrace']);
+goat.setRawCallbackUnhandledOnly(false); // forward all MQTT messages
+```
+
+Whitelist/blacklist entries can be either short topic names (`onStats`) or full MQTT topic strings.
+
+##### Topic to State/Callback Mapping
+
+| Topic(s) | Stored State | Callback | Getter | Initial Poll |
+|---|---|---|---|---|
+| `getPos`, `onPos` | `state.position` | `position` | `getPosition()` | yes (`getPos`) |
+| `getBattery`, `onBattery` | `state.battery` | `battery` | `getBattery()` | yes (`getBattery`) |
+| `getSleep`, `onSleep` | `state.sleep` | `sleep` | `getSleep()` | yes (`getSleep`) |
+| `getVolume`, `onVolume` | `state.volume` | `volume` | `getVolume()` | yes (`getVolume`) |
+| `getLifeSpan` | `state.lifeSpan` | `lifeSpan` | `getLifeSpan()` | yes (`getLifeSpan`) |
+| `getTotalStats` | `state.totalStats` | `totalStats` | `getTotalStats()` | no |
+| `getStats`, `onStats` | `state.stats` | `stats` | `getStats()` | yes (`getStats`) |
+| `getLastTimeStats`, `onLastTimeStats` | `state.lastTimeStats` | `lastTimeStats` | `getLastTimeStats()` | yes (`getLastTimeStats`) |
+| `getNetInfo` | `state.netInfo` | `netInfo` | `getNetInfo()` | yes (`getNetInfo`) |
+| `getMapState` | `state.mapState` | `mapState` | `getMapState()` | no |
+| `getCleanInfo`, `onCleanInfo` | `state.mowInfo` | `mowInfo`, `mowState` | `getMowInfo()`, `getMowState()` | yes (`getCleanInfo`) |
+| `clean` | `state.mowCommand` | `mowCommand` | `getMowCommand()` | no |
+| `getChargeState`, `onChargeState` | `state.chargeState` | `chargeState` | `getChargeState()` | yes (`getChargeState`) |
+| `getChargeInfo`, `onChargeInfo` | `state.chargeInfo` | `chargeInfo` | `getChargeInfo()` | yes (`getChargeInfo`) |
+| `getError`, `onError` | `state.error` | `error` | `getError()` | yes (`getError`) |
+| `getProtectState`, `onProtectState` | `state.protectState` | `protectState` | `getProtectState()` | yes (`getProtectState`) |
+| `getAreaSet`, `onAreaSet` | `state.areaSet` | `areaSet` | `getAreaSet()` | yes (`getAreaSet`) |
+| `getAreaParameter`, `onAreaParameter` | `state.areaParameter` | `areaParameter` | `getAreaParameter()` | yes (`getAreaParameter`) |
+| `getGeolocation` | `state.geolocation` | `geolocation` | `getGeolocation()` | no |
 
 ##### Disconnect
 
@@ -417,6 +480,10 @@ Available methods:
 - `setLogBinaryTopics(enabled)`
 - `setLogMqttTrafficToFile(enabled)`
 - `setMqttTrafficLogFile(filePath)`
+- `setRawCallbackFilter({ whitelist, blacklist, unhandledOnly })`
+- `setRawCallbackWhitelist(topics)`
+- `setRawCallbackBlacklist(topics)`
+- `setRawCallbackUnhandledOnly(enabled)`
 
 ---
 
