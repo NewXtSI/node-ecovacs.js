@@ -109,6 +109,46 @@ async function main() {
       console.log(`[${device.name}] lifeSpan:`, data);
     });
 
+    device.on("cutDirection", (data) => {
+      console.log(`[${device.name}] cutDirection:`, data);
+    });
+
+    device.on("cutHeight", (data) => {
+      console.log(`[${device.name}] cutHeight:`, data);
+    });
+
+    device.on("obstacleHeight", (data) => {
+      console.log(`[${device.name}] obstacleHeight:`, data);
+    });
+
+    device.on("cutEfficiency", (data) => {
+      console.log(`[${device.name}] cutEfficiency:`, data);
+    });
+
+    device.on("autoCutDirection", (data) => {
+      console.log(`[${device.name}] autoCutDirection:`, data);
+    });
+
+    device.on("rainDelay", (data) => {
+      console.log(`[${device.name}] rainDelay:`, data);
+    });
+
+    device.on("animProtect", (data) => {
+      console.log(`[${device.name}] animProtect:`, data);
+    });
+
+    device.on("timeZone", (data) => {
+      console.log(`[${device.name}] timeZone:`, data);
+    });
+
+    device.on("customCutMode", (data) => {
+      console.log(`[${device.name}] customCutMode:`, data);
+    });
+
+    device.on("borderSwitch", (data) => {
+      console.log(`[${device.name}] borderSwitch:`, data);
+    });
+
     // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());
@@ -122,9 +162,19 @@ async function main() {
     console.log("getSleep() =", device.getSleep());
     console.log("getError() =", device.getError());
     console.log("getLifeSpan() =", device.getLifeSpan());
+    console.log("getCutDirection() =", device.getCutDirection());
+    console.log("getCutHeight() =", device.getCutHeight());
+    console.log("getObstacleHeight() =", device.getObstacleHeight());
+    console.log("getCutEfficiency() =", device.getCutEfficiency());
+    console.log("getAutoCutDirection() =", device.getAutoCutDirection());
+    console.log("getRainDelay() =", device.getRainDelay());
+    console.log("getAnimProtect() =", device.getAnimProtect());
+    console.log("getTimeZone() =", device.getTimeZone());
+    console.log("getCustomCutMode() =", device.getCustomCutMode());
+    console.log("getBorderSwitch() =", device.getBorderSwitch());
 
-    // Wait for the reply to arrive via MQTT (onStats / getStats response).
-    console.log("Waiting for stats reply…");
+    // Wait for the reply to arrive via MQTT.
+    console.log("Waiting for replies…");
     await new Promise((resolve) => setTimeout(resolve, 5000));
   }
 

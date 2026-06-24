@@ -197,25 +197,32 @@ Legende:
 | `chargeInfo` | ✅ `chargeInfo` | ✅ `getChargeInfo()` | ✅ `onChargeInfo` | `getChargeInfo` | — |
 | `mowInfo` | ⬜ | ⬜ | ⬜ `onCleanInfo` | `getCleanInfo` | — |
 | `mowCommand` | ⬜ | ⬜ | ⬜ `clean` (p2p/q) | — | ⬜ `mowArea` / `mowBorder` / `pause` / `resume` / `stop` |
-| `error` | ⬜ | ⬜ | ⬜ `onError` | `getError` | — |
-| `sleep` | ⬜ | ⬜ | — | `getSleep` | — |
+| `error` | ✅ `error` | ✅ `getError()` | ✅ `onError` | `getError` | — |
+| `sleep` | ✅ `sleep` | ✅ `getSleep()` | — | `getSleep` | — |
 | `volume` | ⬜ | ⬜ | ⬜ `onVolume` | `getVolume` | ⬜ `setVolume` |
-| `lifeSpan` | ⬜ | ⬜ | — | `getLifeSpan` | — |
-| `netInfo` | ⬜ | ⬜ | — | `getNetInfo` | — |
-| `protectState` | ⬜ | ⬜ | ⬜ `onProtectState` | `getProtectState` | — |
+| `lifeSpan` | ✅ `lifeSpan` | ✅ `getLifeSpan()` | — | `getLifeSpan` ¹ | — |
+| `netInfo` | ✅ `netInfo` | ✅ `getNetInfo()` | — | `getNetInfo` | — |
+| `protectState` | ✅ `protectState` | ✅ `getProtectState()` | ✅ `onProtectState` | `getProtectState` | — |
 | `areaSet` | ⬜ | ⬜ | ⬜ `onAreaSet` | `getAreaSet` | — |
 | `areaParameter` | ⬜ | ⬜ | ⬜ `onAreaParameter` | `getAreaParameter` | — |
-| `geolocation` | ⬜ | ⬜ | — | `getGeolocation` | — |
-| `cutDirection` | ⬜ | ⬜ | — | `getInfo` (verschachtelt) | ⬜ `setCutDirection` |
-| `cutHeight` | ⬜ | ⬜ | — | `getInfo` (verschachtelt) | ⬜ `setCutHeight` |
-| `obstacleHeight` | ⬜ | ⬜ | — | `getInfo` (verschachtelt) | ⬜ `setObstacleHeight` |
-| `rainDelay` | ⬜ | ⬜ | — | `getInfo` (verschachtelt) | ⬜ `setRainDelay` |
-| `borderSwitch` | ⬜ | ⬜ | — | `getInfo` (verschachtelt) | ⬜ `setBorderSwitch` |
+| `geolocation` | ✅ `geolocation` | ✅ `getGeolocation()` | — | `getGeolocation` | — |
+| `cutEfficiency` | ✅ `cutEfficiency` | ✅ `getCutEfficiency()` | — | `getCutEfficiency` ² | ⬜ |
+| `obstacleHeight` | ✅ `obstacleHeight` | ✅ `getObstacleHeight()` | — | `getObstacleHeight` ² | ⬜ `setObstacleHeight` |
+| `cutHeight` | ✅ `cutHeight` | ✅ `getCutHeight()` | — | `getCutHeight` ² | ⬜ `setCutHeight` |
+| `cutDirection` | ✅ `cutDirection` | ✅ `getCutDirection()` | — | `getCutDirection` ² | ⬜ `setCutDirection` |
+| `autoCutDirection` | ✅ `autoCutDirection` | ✅ `getAutoCutDirection()` | — | `getAutoCutDirection` ² | ⬜ |
+| `rainDelay` | ✅ `rainDelay` | ✅ `getRainDelay()` | — | `getRainDelay` ² | ⬜ `setRainDelay` |
+| `animProtect` | ✅ `animProtect` | ✅ `getAnimProtect()` | — | `getAnimProtect` ² | ⬜ |
+| `timeZone` | ✅ `timeZone` | ✅ `getTimeZone()` | — | `getTimeZone` ² | ⬜ |
+| `customCutMode` | ✅ `customCutMode` | ✅ `getCustomCutMode()` | — | `getCustomCutMode` ² | ⬜ |
+| `borderSwitch` | ✅ `borderSwitch` | ✅ `getBorderSwitch()` | — | `getBorderSwitch` ² | ⬜ `setBorderSwitch` |
 | `fwBuryPoint-*` | ⬜ | — | ⬜ `onFwBuryPoint-*` | — | — |
 
-> **Hinweis `getInfo`:** Mehrere Einstellungen (`cutDirection`, `cutHeight` usw.) kommen als verschachteltes Response-Objekt auf einen einzigen `getInfo`-Command. Der Lazy-Load sendet dann `getInfo` und befüllt alle verschachtelten States auf einmal.
+> **Hinweis `getInfo`-Fallback:** Die Info-Felder werden primär über direkte Commands (`getCutDirection`, `getCutHeight`, …) geladen. Zusätzlich werden verschachtelte `getInfo`-Replies auf dieselben direkten Routen gemappt.
 
 > ¹ `getLifeSpan` benötigt einen Body-Parameter `{ type: ["blade", "lensBrush"] }`. Dieser wird intern automatisch mitgesendet.
+
+> ² Direkter Command + `getInfo`-Fallback-Mapping.
 
 ---
 

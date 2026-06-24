@@ -33,7 +33,17 @@ export class Api2Device extends EventEmitter {
       netInfo: UNSET,        // { ip, ssid, rssi, wkVer, mac }
       sleep: UNSET,          // { enable }
       error: UNSET,          // { code: [...] }
-      lifeSpan: UNSET        // { blade: { left, total }, ... }
+      lifeSpan: UNSET,       // { blade: { left, total }, ... }
+      cutEfficiency: UNSET,   // { level }
+      obstacleHeight: UNSET,  // { level }
+      cutHeight: UNSET,       // { level }
+      cutDirection: UNSET,    // { angle, set }
+      autoCutDirection: UNSET,// { enable }
+      rainDelay: UNSET,       // { enable, delay }
+      animProtect: UNSET,     // {...}
+      timeZone: UNSET,        // {...}
+      customCutMode: UNSET,   // {...}
+      borderSwitch: UNSET     // {...}
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -169,6 +179,48 @@ export class Api2Device extends EventEmitter {
     return this._getOrRequest("lifeSpan");
   }
 
+  // ─── State: direct info-fields (with getInfo fallback support) ───────────
+
+  getCutEfficiency() {
+    return this._getOrRequest("cutEfficiency");
+  }
+
+  getObstacleHeight() {
+    return this._getOrRequest("obstacleHeight");
+  }
+
+  getCutHeight() {
+    return this._getOrRequest("cutHeight");
+  }
+
+  getCutDirection() {
+    return this._getOrRequest("cutDirection");
+  }
+
+  getAutoCutDirection() {
+    return this._getOrRequest("autoCutDirection");
+  }
+
+  getRainDelay() {
+    return this._getOrRequest("rainDelay");
+  }
+
+  getAnimProtect() {
+    return this._getOrRequest("animProtect");
+  }
+
+  getTimeZone() {
+    return this._getOrRequest("timeZone");
+  }
+
+  getCustomCutMode() {
+    return this._getOrRequest("customCutMode");
+  }
+
+  getBorderSwitch() {
+    return this._getOrRequest("borderSwitch");
+  }
+
   /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */
   _getOrRequest(key) {
     if (this._state[key] === UNSET) {
@@ -229,10 +281,57 @@ export class Api2Device extends EventEmitter {
       case "getLifeSpan":
         this._updateState("lifeSpan", data);
         break;
+      case "getCutEfficiency":
+        this._updateState("cutEfficiency", data);
+        break;
+      case "getObstacleHeight":
+        this._updateState("obstacleHeight", data);
+        break;
+      case "getCutHeight":
+        this._updateState("cutHeight", data);
+        break;
+      case "getCutDirection":
+        this._updateState("cutDirection", data);
+        break;
+      case "getAutoCutDirection":
+        this._updateState("autoCutDirection", data);
+        break;
+      case "getRainDelay":
+        this._updateState("rainDelay", data);
+        break;
+      case "getAnimProtect":
+        this._updateState("animProtect", data);
+        break;
+      case "getTimeZone":
+        this._updateState("timeZone", data);
+        break;
+      case "getCustomCutMode":
+        this._updateState("customCutMode", data);
+        break;
+      case "getBorderSwitch":
+        this._updateState("borderSwitch", data);
+        break;
+      case "getInfo":
+        this._ingestGetInfoData(data);
+        break;
       default:
         // Emit a generic 'unknownTopic' event so the consumer can react if needed.
         this.emit("unknownTopic", { topicName, data });
         break;
+    }
+  }
+
+  /**
+   * Handles getInfo nested payloads and routes each nested getXxx result
+   * through the same direct topic pipeline, so state logic stays unified.
+   */
+  _ingestGetInfoData(data) {
+    if (!data || typeof data !== "object") return;
+
+    for (const [nestedTopicName, nestedPayload] of Object.entries(data)) {
+      if (!nestedTopicName.startsWith("get")) continue;
+      const nestedData = nestedPayload?.data ?? null;
+      this._ingestTopicData(nestedTopicName, nestedData);
     }
   }
 
