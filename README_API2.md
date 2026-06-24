@@ -207,15 +207,15 @@ Legende:
 | `areaParameter` | ⬜ | ⬜ | ⬜ `onAreaParameter` | `getAreaParameter` | — |
 | `geolocation` | ✅ `geolocation` | ✅ `getGeolocation()` | — | `getGeolocation` | — |
 | `cutEfficiency` | ✅ `cutEfficiency` | ✅ `getCutEfficiency()` | — | `getCutEfficiency` ² | ⬜ |
-| `obstacleHeight` | ✅ `obstacleHeight` | ✅ `getObstacleHeight()` | — | `getObstacleHeight` ² | ⬜ `setObstacleHeight` |
-| `cutHeight` | ✅ `cutHeight` | ✅ `getCutHeight()` | — | `getCutHeight` ² | ⬜ `setCutHeight` |
-| `cutDirection` | ✅ `cutDirection` | ✅ `getCutDirection()` | — | `getCutDirection` ² | ⬜ `setCutDirection` |
+| `obstacleHeight` | ✅ `obstacleHeight` | ✅ `getObstacleHeight()` | — | `getObstacleHeight` ² | ✅ `setObstacleHeight` |
+| `cutHeight` | ✅ `cutHeight` | ✅ `getCutHeight()` | — | `getCutHeight` ² | ✅ `setCutHeight` |
+| `cutDirection` | ✅ `cutDirection` | ✅ `getCutDirection()` | — | `getCutDirection` ² | ✅ `setCutDirection` |
 | `autoCutDirection` | ✅ `autoCutDirection` | ✅ `getAutoCutDirection()` | — | `getAutoCutDirection` ² | ⬜ |
-| `rainDelay` | ✅ `rainDelay` | ✅ `getRainDelay()` | — | `getRainDelay` ² | ⬜ `setRainDelay` |
+| `rainDelay` | ✅ `rainDelay` | ✅ `getRainDelay()` | — | `getRainDelay` ² | ✅ `setRainDelay` |
 | `animProtect` | ✅ `animProtect` | ✅ `getAnimProtect()` | — | `getAnimProtect` ² | ⬜ |
 | `timeZone` | ✅ `timeZone` | ✅ `getTimeZone()` | — | `getTimeZone` ² | ⬜ |
 | `customCutMode` | ✅ `customCutMode` | ✅ `getCustomCutMode()` | — | `getCustomCutMode` ² | ⬜ |
-| `borderSwitch` | ✅ `borderSwitch` | ✅ `getBorderSwitch()` | — | `getBorderSwitch` ² | ⬜ `setBorderSwitch` |
+| `borderSwitch` | ✅ `borderSwitch` | ✅ `getBorderSwitch()` | — | `getBorderSwitch` ² | ✅ `setBorderSwitch` |
 | `fwBuryPoint-*` | ⬜ | — | ⬜ `onFwBuryPoint-*` | — | — |
 
 > **Hinweis `getInfo`-Fallback:** Die Info-Felder werden primär über direkte Commands (`getCutDirection`, `getCutHeight`, …) geladen. Zusätzlich werden verschachtelte `getInfo`-Replies auf dieselben direkten Routen gemappt.

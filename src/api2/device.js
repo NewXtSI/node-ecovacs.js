@@ -261,6 +261,124 @@ export class Api2Device extends EventEmitter {
     return response;
   }
 
+  /**
+   * Sets cut height level and triggers a refresh request afterward.
+   * @param {number} level
+   */
+  async setCutHeight(level) {
+    const numericLevel = Number(level);
+    if (!Number.isFinite(numericLevel)) {
+      throw new Error("setCutHeight(level) requires a numeric level.");
+    }
+
+    const response = await this.sendCommand({
+      name: "setCutHeight",
+      data: { level: numericLevel }
+    });
+
+    this._requestData("getCutHeight");
+    return response;
+  }
+
+  /**
+   * Sets cut direction and triggers a refresh request afterward.
+   * Accepts either (angle, set) or a payload object { angle, set }.
+   * @param {number|{angle:number,set:number}} angleOrData
+   * @param {number} [set=1]
+   */
+  async setCutDirection(angleOrData, set = 1) {
+    let data;
+    if (angleOrData && typeof angleOrData === "object" && !Array.isArray(angleOrData)) {
+      data = {
+        angle: Number(angleOrData.angle),
+        set: Number(angleOrData.set)
+      };
+    } else {
+      data = {
+        angle: Number(angleOrData),
+        set: Number(set)
+      };
+    }
+
+    if (!Number.isFinite(data.angle) || !Number.isFinite(data.set)) {
+      throw new Error("setCutDirection(...) requires numeric angle and set values.");
+    }
+
+    const response = await this.sendCommand({
+      name: "setCutDirection",
+      data
+    });
+
+    this._requestData("getCutDirection");
+    return response;
+  }
+
+  /**
+   * Sets rain delay and triggers a refresh request afterward.
+   * Accepts either (delay, enable) or a payload object { delay, enable }.
+   * @param {number|{delay:number,enable:number}} delayOrData
+   * @param {number} [enable=1]
+   */
+  async setRainDelay(delayOrData, enable = 1) {
+    let data;
+    if (delayOrData && typeof delayOrData === "object" && !Array.isArray(delayOrData)) {
+      data = {
+        delay: Number(delayOrData.delay),
+        enable: Number(delayOrData.enable)
+      };
+    } else {
+      data = {
+        delay: Number(delayOrData),
+        enable: Number(enable)
+      };
+    }
+
+    if (!Number.isFinite(data.delay) || !Number.isFinite(data.enable)) {
+      throw new Error("setRainDelay(...) requires numeric delay and enable values.");
+    }
+
+    const response = await this.sendCommand({
+      name: "setRainDelay",
+      data
+    });
+
+    this._requestData("getRainDelay");
+    return response;
+  }
+
+  /**
+   * Sets border switch mode and triggers a refresh request afterward.
+   * Accepts either (mode, enable) or a payload object { mode, enable }.
+   * @param {number|{mode:number,enable:number}} modeOrData
+   * @param {number} [enable=1]
+   */
+  async setBorderSwitch(modeOrData, enable = 1) {
+    let data;
+    if (modeOrData && typeof modeOrData === "object" && !Array.isArray(modeOrData)) {
+      data = {
+        mode: Number(modeOrData.mode),
+        enable: Number(modeOrData.enable)
+      };
+    } else {
+      data = {
+        mode: Number(modeOrData),
+        enable: Number(enable)
+      };
+    }
+
+    if (!Number.isFinite(data.mode) || !Number.isFinite(data.enable)) {
+      throw new Error("setBorderSwitch(...) requires numeric mode and enable values.");
+    }
+
+    const response = await this.sendCommand({
+      name: "setBorderSwitch",
+      data
+    });
+
+    this._requestData("getBorderSwitch");
+    return response;
+  }
+
   /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */
   _getOrRequest(key) {
     if (this._state[key] === UNSET) {
