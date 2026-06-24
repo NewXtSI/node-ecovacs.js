@@ -588,6 +588,58 @@ class GoatAdapter {
 }
 ```
 
+### ioBroker Raw Callback Profiles
+
+#### Profile 1: Only Unhandled Topics (default)
+
+Use this profile to receive only MQTT messages that currently do not have a dedicated Goat state callback.
+
+```javascript
+// Optional: explicit default setup
+goat.setRawCallbackUnhandledOnly(true);
+goat.setRawCallbackWhitelist([]);
+goat.setRawCallbackBlacklist([]);
+
+goat.on('rawMessage', (msg) => {
+  // msg.topicName can be null for malformed topics
+  const topic = msg.topicName || msg.topic;
+  this.log.debug(`[RAW/UNHANDLED] ${topic}: ${msg.payloadRaw}`);
+});
+```
+
+#### Profile 2: Full Raw Stream With Whitelist
+
+Use this profile when you want all raw traffic, but constrained to selected topic names.
+
+```javascript
+// Receive all topics first
+goat.setRawCallbackUnhandledOnly(false);
+
+// Then constrain to selected topics
+goat.setRawCallbackWhitelist([
+  'onMapTrace',
+  'onFwBuryPoint-bd_basicinfo',
+  'onFwBuryPoint-bd_setting'
+]);
+
+// Optional: exclude noisy topics even if whitelisted later by full topic string
+goat.setRawCallbackBlacklist([
+  'onBattery'
+]);
+
+goat.on('rawMessage', (msg) => {
+  // Parsed payload is in msg.payload (if JSON parse was successful)
+  this.log.info(`[RAW/FILTERED] ${msg.topicName}`, msg.payload);
+});
+```
+
+#### Notes
+
+- Whitelist and blacklist entries can be short names like onStats or full MQTT topic strings.
+- If whitelist is non-empty, only whitelist matches are forwarded.
+- Blacklist is always applied after whitelist.
+- For adapter-level discovery of new topics, Profile 1 is typically the safest default.
+
 ## License
 
 MIT
