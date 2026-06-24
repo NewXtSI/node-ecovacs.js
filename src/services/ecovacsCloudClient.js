@@ -225,12 +225,23 @@ export class EcovacsCloudClient {
       country: this.restConfig.country,
       portalUrl: this.restConfig.portalUrl
     });
+    this.logger.auth?.("Starting auth flow");
 
     const loginPasswordResponse = await this.callLoginApi();
+    this.logger.auth?.("Password login step completed", {
+      hasAccessToken: Boolean(loginPasswordResponse?.accessToken),
+      uid: loginPasswordResponse?.uid || null
+    });
     let userId = String(loginPasswordResponse.uid);
 
     const authCode = await this.callAuthApi(loginPasswordResponse.accessToken, userId);
+    this.logger.auth?.("Auth code step completed", {
+      hasAuthCode: Boolean(authCode)
+    });
     const loginTokenResponse = await this.callLoginByItToken(userId, authCode);
+    this.logger.auth?.("Token login step completed", {
+      hasToken: Boolean(loginTokenResponse?.token)
+    });
 
     if (String(loginTokenResponse.userId) !== userId) {
       userId = String(loginTokenResponse.userId);
@@ -246,6 +257,11 @@ export class EcovacsCloudClient {
       expiresAt
     };
 
+    this.logger.auth?.("Auth flow completed", {
+      userId,
+      expiresAt
+    });
+
     return this.sessionCredentials;
   }
 
@@ -257,7 +273,19 @@ export class EcovacsCloudClient {
       throw new Error(`Authentication request failed: ${response.status} ${response.statusText}`);
     }
 
-    const payload = await response.json();
+    const rawText = await response.text();
+    let payload;
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      throw new Error("Authentication response was not valid JSON.");
+    }
+
+    this.logger.connectionRaw?.("Auth API response", {
+      url,
+      status: response.status,
+      payload
+    });
 
     if (String(payload.code) === LOGIN_SUCCESS_CODE) {
       return payload.data;
