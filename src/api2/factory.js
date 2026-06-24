@@ -256,11 +256,17 @@ export class Api2Factory {
       logger: this.logger
     });
 
+    const sendToDevice = async (commandEntry) => {
+      return commander.sendCommand(device.rawDevice, commandEntry);
+    };
+
+    device.setCommandSender(sendToDevice);
+
     // Wire device lazy-load requests → real device commands.
     // commandEntry is a string name or { name, data } object.
     device.on("_requestData", async (commandEntry) => {
       try {
-        await commander.sendCommand(device.rawDevice, commandEntry);
+        await sendToDevice(commandEntry);
       } catch (error) {
         const cmdName = typeof commandEntry === "string" ? commandEntry : commandEntry.name;
         this.logger.warn("Failed to send command", {

@@ -49,6 +49,9 @@ export class Api2Device extends EventEmitter {
     // Tracks which commands have been requested but not yet answered,
     // so lazy-load does not flood the device with repeated requests.
     this._pendingRequests = new Set();
+
+    // Set by Api2Factory.connectDevice() to forward explicit write commands.
+    this._sendCommand = null;
   }
 
   // ─── EventEmitter override ────────────────────────────────────────────────
@@ -219,6 +222,43 @@ export class Api2Device extends EventEmitter {
 
   getBorderSwitch() {
     return this._getOrRequest("borderSwitch");
+  }
+
+  // ─── Write commands (setters) ─────────────────────────────────────────────
+
+  /** Internal hook used by the factory to inject the real command sender. */
+  setCommandSender(sender) {
+    this._sendCommand = typeof sender === "function" ? sender : null;
+    return this;
+  }
+
+  /** Sends a raw command entry through the connected command sender. */
+  async sendCommand(commandEntry) {
+    if (!this._sendCommand) {
+      throw new Error("Device command sender is not connected. Call factory.connectDevice(device) first.");
+    }
+
+    return this._sendCommand(commandEntry);
+  }
+
+  /**
+   * Sets obstacle height level and triggers a refresh request afterward.
+   * @param {number} level
+   */
+  async setObstacleHeight(level) {
+    const numericLevel = Number(level);
+    if (!Number.isFinite(numericLevel)) {
+      throw new Error("setObstacleHeight(level) requires a numeric level.");
+    }
+
+    const response = await this.sendCommand({
+      name: "setObstacleHeight",
+      data: { level: numericLevel }
+    });
+
+    // Request fresh value so state/event updates reflect the effective value.
+    this._requestData("getObstacleHeight");
+    return response;
   }
 
   /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */

@@ -24,6 +24,22 @@ async function loadCredentials() {
   };
 }
 
+function waitForEvent(target, eventName, timeoutMs = 7000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      target.off(eventName, onEvent);
+      reject(new Error(`Timeout waiting for event '${eventName}'`));
+    }, timeoutMs);
+
+    const onEvent = (data) => {
+      clearTimeout(timeout);
+      resolve(data);
+    };
+
+    target.once(eventName, onEvent);
+  });
+}
+
 async function main() {
   const credentials = await loadCredentials();
 
@@ -173,9 +189,36 @@ async function main() {
     console.log("getCustomCutMode() =", device.getCustomCutMode());
     console.log("getBorderSwitch() =", device.getBorderSwitch());
 
-    // Wait for the reply to arrive via MQTT.
-    console.log("Waiting for replies…");
+    // Wait 5s after script start before setter test.
+    console.log("Waiting 5s before obstacleHeight setter test…");
     await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // 1) Read current obstacleHeight (or fetch if still null)
+    let before = device.getObstacleHeight();
+    if (!before || typeof before.level === "undefined") {
+      await device.sendCommand("getObstacleHeight");
+      before = await waitForEvent(device, "obstacleHeight", 7000);
+    }
+
+    const beforeLevel = Number(before?.level);
+    if (!Number.isFinite(beforeLevel)) {
+      throw new Error(`obstacleHeight.level is not numeric: ${JSON.stringify(before)}`);
+    }
+
+    const lowerLevel = Math.max(0, beforeLevel - 1);
+    console.log(`Setter test obstacleHeight: before=${beforeLevel}, lower=${lowerLevel}`);
+
+    // 2) Set lower value, then read back
+    await device.setObstacleHeight(lowerLevel);
+    const afterLower = await waitForEvent(device, "obstacleHeight", 7000);
+    console.log("obstacleHeight after lower set:", afterLower);
+
+    // 3) Restore original value, then read back again
+    await device.setObstacleHeight(beforeLevel);
+    const afterRestore = await waitForEvent(device, "obstacleHeight", 7000);
+    console.log("obstacleHeight after restore:", afterRestore);
+
+    console.log("Setter test completed.");
   }
 
   await factory.disconnect();
