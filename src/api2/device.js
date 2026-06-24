@@ -27,7 +27,13 @@ export class Api2Device extends EventEmitter {
       totalStats: UNSET,     // { area, time, count }
       battery: UNSET,        // { value, isLow }
       chargeState: UNSET,    // { isCharging, mode }
-      chargeInfo: UNSET      // onChargeInfo payload
+      chargeInfo: UNSET,     // { cid, trigger, state, other }
+      geolocation: UNSET,    // { enable, geoLocation: { longitude, latitude } }
+      protectState: UNSET,   // onProtectState payload
+      netInfo: UNSET,        // { ip, ssid, rssi, wkVer, mac }
+      sleep: UNSET,          // { enable }
+      error: UNSET,          // { code: [...] }
+      lifeSpan: UNSET        // { blade: { left, total }, ... }
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -131,6 +137,38 @@ export class Api2Device extends EventEmitter {
     return this._getOrRequest("chargeInfo");
   }
 
+  // ─── State: geolocation / protectState / netInfo / sleep / error / lifeSpan
+
+  /** Returns current geolocation or null; auto-polls via getGeolocation if not yet received. */
+  getGeolocation() {
+    return this._getOrRequest("geolocation");
+  }
+
+  /** Returns current protect state or null; auto-polls via getProtectState if not yet received. */
+  getProtectState() {
+    return this._getOrRequest("protectState");
+  }
+
+  /** Returns current net info or null; auto-polls via getNetInfo if not yet received. */
+  getNetInfo() {
+    return this._getOrRequest("netInfo");
+  }
+
+  /** Returns current sleep state or null; auto-polls via getSleep if not yet received. */
+  getSleep() {
+    return this._getOrRequest("sleep");
+  }
+
+  /** Returns current error state or null; auto-polls via getError if not yet received. */
+  getError() {
+    return this._getOrRequest("error");
+  }
+
+  /** Returns current life span or null; auto-polls via getLifeSpan if not yet received. */
+  getLifeSpan() {
+    return this._getOrRequest("lifeSpan");
+  }
+
   /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */
   _getOrRequest(key) {
     if (this._state[key] === UNSET) {
@@ -171,6 +209,26 @@ export class Api2Device extends EventEmitter {
       case "onChargeInfo":
         this._updateState("chargeInfo", data);
         break;
+      case "getGeolocation":
+        this._updateState("geolocation", data);
+        break;
+      case "getProtectState":
+      case "onProtectState":
+        this._updateState("protectState", data);
+        break;
+      case "getNetInfo":
+        this._updateState("netInfo", data);
+        break;
+      case "getSleep":
+        this._updateState("sleep", data);
+        break;
+      case "getError":
+      case "onError":
+        this._updateState("error", data);
+        break;
+      case "getLifeSpan":
+        this._updateState("lifeSpan", data);
+        break;
       default:
         // Emit a generic 'unknownTopic' event so the consumer can react if needed.
         this.emit("unknownTopic", { topicName, data });
@@ -187,20 +245,26 @@ export class Api2Device extends EventEmitter {
     const prev = this._state[key];
     if (stateEqual(prev, newValue)) return;
     this._state[key] = newValue;
-    this._pendingRequests.delete(this._commandForState(key));
+    // Clear pending request using the command entry's name.
+    const cmd = this._commandForState(key);
+    const cmdName = typeof cmd === "string" ? cmd : cmd.name;
+    this._pendingRequests.delete(cmdName);
     this.emit(key, newValue);
   }
 
   /**
    * Fires the internal '_requestData' event so the connection layer can send
    * the corresponding device command.  Deduplicates concurrent requests.
-   * @param {string} commandName - e.g. 'getStats'
+   * The command entry is passed through as-is so the factory can forward
+   * objects with extra body data (e.g. { name: 'getLifeSpan', data: {...} }).
+   * @param {string|{name:string,data:object}} commandEntry
    */
-  _requestData(commandName) {
-    if (this._pendingRequests.has(commandName)) return;
-    this._pendingRequests.add(commandName);
+  _requestData(commandEntry) {
+    const key = typeof commandEntry === "string" ? commandEntry : commandEntry.name;
+    if (this._pendingRequests.has(key)) return;
+    this._pendingRequests.add(key);
     // Async emit so the caller's call-stack finishes first.
-    setImmediate(() => this.emit("_requestData", commandName));
+    setImmediate(() => this.emit("_requestData", commandEntry));
   }
 
   /**
@@ -211,11 +275,10 @@ export class Api2Device extends EventEmitter {
    * @returns {string}
    */
   _commandForState(key) {
-    // Only needed for keys where the command name differs from get<Key>.
+    // Returns a string command name or a { name, data } object for commands
+    // that require extra body data.
     const map = {
-      stats: "getStats",
-      lastTimeStats: "getLastTimeStats",
-      totalStats: "getTotalStats"
+      lifeSpan: { name: "getLifeSpan", data: { type: ["blade", "lensBrush"] } }
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
   }

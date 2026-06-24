@@ -85,6 +85,30 @@ async function main() {
       console.log(`[${device.name}] chargeInfo:`, data);
     });
 
+    device.on("geolocation", (data) => {
+      console.log(`[${device.name}] geolocation:`, data);
+    });
+
+    device.on("protectState", (data) => {
+      console.log(`[${device.name}] protectState:`, data);
+    });
+
+    device.on("netInfo", (data) => {
+      console.log(`[${device.name}] netInfo:`, data);
+    });
+
+    device.on("sleep", (data) => {
+      console.log(`[${device.name}] sleep:`, data);
+    });
+
+    device.on("error", (data) => {
+      console.log(`[${device.name}] error:`, data);
+    });
+
+    device.on("lifeSpan", (data) => {
+      console.log(`[${device.name}] lifeSpan:`, data);
+    });
+
     // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());
@@ -92,6 +116,12 @@ async function main() {
     console.log("getBattery() =", device.getBattery());
     console.log("getChargeState() =", device.getChargeState());
     console.log("getChargeInfo() =", device.getChargeInfo());
+    console.log("getGeolocation() =", device.getGeolocation());
+    console.log("getProtectState() =", device.getProtectState());
+    console.log("getNetInfo() =", device.getNetInfo());
+    console.log("getSleep() =", device.getSleep());
+    console.log("getError() =", device.getError());
+    console.log("getLifeSpan() =", device.getLifeSpan());
 
     // Wait for the reply to arrive via MQTT (onStats / getStats response).
     console.log("Waiting for stats reply…");

@@ -215,6 +215,8 @@ Legende:
 
 > **Hinweis `getInfo`:** Mehrere Einstellungen (`cutDirection`, `cutHeight` usw.) kommen als verschachteltes Response-Objekt auf einen einzigen `getInfo`-Command. Der Lazy-Load sendet dann `getInfo` und befüllt alle verschachtelten States auf einmal.
 
+> ¹ `getLifeSpan` benötigt einen Body-Parameter `{ type: ["blade", "lensBrush"] }`. Dieser wird intern automatisch mitgesendet.
+
 ---
 
 ## Vollständiges Beispiel (ioBroker-Adapter-Stil)
