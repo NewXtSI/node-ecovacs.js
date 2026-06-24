@@ -223,6 +223,8 @@ Legende:
 
 > **Hinweis `getInfo`-Fallback:** Die Info-Felder werden primär über direkte Commands (`getCutDirection`, `getCutHeight`, …) geladen. Zusätzlich werden verschachtelte `getInfo`-Replies auf dieselben direkten Routen gemappt.
 
+> **Hinweis Mow/Clean `charge`:** Für die Rückfahrt zur Dockingstation wird im `clean`-Command `act: "charge"` verwendet (nicht ein separates `dock`-Topic).
+
 > ¹ `getLifeSpan` benötigt einen Body-Parameter `{ type: ["blade", "lensBrush"] }`. Dieser wird intern automatisch mitgesendet.
 
 > ² Direkter Command + `getInfo`-Fallback-Mapping.
