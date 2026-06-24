@@ -5,6 +5,12 @@ const RUN_SETTER_TESTS = ["1", "true", "yes", "on"].includes(
   String(process.env.API2_RUN_SETTER_TESTS || "").trim().toLowerCase()
 );
 
+const LISTEN_SECONDS = (() => {
+  const parsed = Number(process.env.API2_LISTEN_SECONDS);
+  if (!Number.isFinite(parsed)) return 30;
+  return Math.max(0, parsed);
+})();
+
 async function loadCredentials() {
   const raw = await readFile("./credentials.json", "utf8");
   const parsed = JSON.parse(raw);
@@ -385,6 +391,11 @@ async function main() {
     } else {
       console.log("Setter tests skipped (set API2_RUN_SETTER_TESTS=1 to enable).");
     }
+  }
+
+  if (LISTEN_SECONDS > 0) {
+    console.log(`Listening for live events for ${LISTEN_SECONDS}s (set API2_LISTEN_SECONDS=0 to skip wait)...`);
+    await new Promise((resolve) => setTimeout(resolve, LISTEN_SECONDS * 1000));
   }
 
   await factory.disconnect();
