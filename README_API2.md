@@ -193,7 +193,9 @@ Legende:
 | `lastTimeStats` | ✅ `lastTimeStats` | ✅ `getLastTimeStats()` | ✅ `onLastTimeStats` | `getLastTimeStats` | — |
 | `totalStats` | ✅ `totalStats` | ✅ `getTotalStats()` | — | `getTotalStats` | — |
 | `battery` | ✅ `battery` | ✅ `getBattery()` | ✅ `onBattery` | `getBattery` | — |
-| `position` | ✅ `position` | ✅ `getPosition()` | ✅ `onPos` | `getPos` | — |
+| `goatPosition` | ✅ `goatPosition` | ✅ `getGoatPosition()` | ✅ `onPos` | `getPos` | — |
+| `chargePosition` | ✅ `chargePosition` | ✅ `getChargePosition()` | ✅ `onPos` | `getPos` | — |
+| `rtkPosition` | ✅ `rtkPosition` | ✅ `getRtkPosition()` | ✅ `onPos` | `getPos` | — |
 | `chargeState` | ✅ `chargeState` | ✅ `getChargeState()` | ✅ `onChargeState` | `getChargeState` | — |
 | `chargeInfo` | ✅ `chargeInfo` | ✅ `getChargeInfo()` | ✅ `onChargeInfo` | `getChargeInfo` | — |
 | `mowInfo` | ✅ `mowInfo` | ✅ `getMowInfo()` / `getMowState()` | ✅ `onCleanInfo` | `getCleanInfo` | — |
@@ -225,7 +227,7 @@ Legende:
 
 > ² Direkter Command + `getInfo`-Fallback-Mapping.
 
-> ³ `position` normalisiert mehrere mögliche Payload-Felder (z. B. `deebotPos`, `pos`, `position`, `rtkPos`) auf `{ x, y, a }`.
+> ³ `onPos`/`getPos` werden auf drei States aufgeteilt: `goatPosition`, `chargePosition`, `rtkPosition`.
 
 ---
 

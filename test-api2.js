@@ -167,8 +167,16 @@ async function main() {
       console.log(`[${device.name}] battery:`, data);
     });
 
-    device.on("position", (data) => {
-      console.log(`[${device.name}] position:`, data);
+    device.on("goatPosition", (data) => {
+      console.log(`[${device.name}] goatPosition:`, data);
+    });
+
+    device.on("chargePosition", (data) => {
+      console.log(`[${device.name}] chargePosition:`, data);
+    });
+
+    device.on("rtkPosition", (data) => {
+      console.log(`[${device.name}] rtkPosition:`, data);
     });
 
     if (LOG_POS_PAYLOADS) {
@@ -258,7 +266,9 @@ async function main() {
     console.log("getLastTimeStats() =", device.getLastTimeStats());
     console.log("getTotalStats() =", device.getTotalStats());
     console.log("getBattery() =", device.getBattery());
-    console.log("getPosition() =", device.getPosition());
+    console.log("getGoatPosition() =", device.getGoatPosition());
+    console.log("getChargePosition() =", device.getChargePosition());
+    console.log("getRtkPosition() =", device.getRtkPosition());
     console.log("getChargeState() =", device.getChargeState());
     console.log("getChargeInfo() =", device.getChargeInfo());
     console.log("getMowInfo() =", device.getMowInfo());

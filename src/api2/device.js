@@ -22,7 +22,9 @@ export class Api2Device extends EventEmitter {
     // Internal state store.  Each property starts as UNSET (never received)
     // so the first ingested value always triggers an event even if it is null.
     this._state = {
-      position: UNSET,       // { x, y, a }
+      goatPosition: UNSET,   // { x, y, a, ... }
+      chargePosition: UNSET, // [{ x, y, a, ... }, ...]
+      rtkPosition: UNSET,    // [{ x, y, a, ... }, ...]
       stats: UNSET,          // { time, area, mowedArea }
       lastTimeStats: UNSET,  // { cid, start, type, stop, area, time }
       totalStats: UNSET,     // { area, time, count }
@@ -142,9 +144,19 @@ export class Api2Device extends EventEmitter {
     return this._getOrRequest("battery");
   }
 
-  /** Returns current position or null; auto-polls via getPos if not yet received. */
-  getPosition() {
-    return this._getOrRequest("position");
+  /** Returns current goat(robot) position or null; auto-polls via getPos if not yet received. */
+  getGoatPosition() {
+    return this._getOrRequest("goatPosition");
+  }
+
+  /** Returns current charge(dock) positions or null; auto-polls via getPos if not yet received. */
+  getChargePosition() {
+    return this._getOrRequest("chargePosition");
+  }
+
+  /** Returns current RTK positions or null; auto-polls via getPos if not yet received. */
+  getRtkPosition() {
+    return this._getOrRequest("rtkPosition");
   }
 
   /** Returns current charge state or null; auto-polls via getChargeState if not yet received. */
@@ -415,8 +427,10 @@ export class Api2Device extends EventEmitter {
     switch (topicName) {
       case "getPos":
       case "onPos": {
-        const normalizedPos = this._normalizePosition(data);
-        if (normalizedPos) this._updateState("position", normalizedPos);
+        const nextPositions = this._normalizePositions(data);
+        this._updateState("goatPosition", nextPositions.goatPosition);
+        this._updateState("chargePosition", nextPositions.chargePosition);
+        this._updateState("rtkPosition", nextPositions.rtkPosition);
         break;
       }
       case "getStats":
@@ -566,7 +580,9 @@ export class Api2Device extends EventEmitter {
     const map = {
       lifeSpan: { name: "getLifeSpan", data: { type: ["blade", "lensBrush"] } },
       mowInfo: "getCleanInfo",
-      position: "getPos"
+      goatPosition: "getPos",
+      chargePosition: "getPos",
+      rtkPosition: "getPos"
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
   }
@@ -602,31 +618,57 @@ export class Api2Device extends EventEmitter {
     return null;
   }
 
-  _normalizePosition(data) {
-    if (!data || typeof data !== "object") return null;
-
-    const candidates = [
-      data.deebotPos,
-      data.pos,
-      data.position,
-      data.rtkPos,
-      data.gnssPos,
-      data
-    ];
-
-    for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== "object") continue;
-
-      const x = this._pickNumeric(candidate, ["x", "X", "posX", "px"]);
-      const y = this._pickNumeric(candidate, ["y", "Y", "posY", "py"]);
-      const a = this._pickNumeric(candidate, ["a", "A", "angle", "theta", "yaw", "posA", "pa"]);
-
-      if (x !== null && y !== null) {
-        return { x, y, a: a ?? 0 };
-      }
+  _normalizePositions(data) {
+    if (!data || typeof data !== "object") {
+      return {
+        goatPosition: null,
+        chargePosition: null,
+        rtkPosition: null
+      };
     }
 
-    return null;
+    const goatCandidate = data.deebotPos ?? data.goatPos ?? data.robotPos ?? data.pos ?? data.position ?? data;
+    const goatPosition = this._normalizePose(goatCandidate);
+
+    const chargeRaw = data.chargePos ?? data.chargePosition ?? data.dockPos ?? data.dockPosition;
+    const chargePosition = this._normalizePoseArray(chargeRaw);
+
+    const rtkRaw = data.rtkPos ?? data.rtkPosition ?? data.gnssPos ?? data.gnssPosition;
+    const rtkPosition = this._normalizePoseArray(rtkRaw);
+
+    return {
+      goatPosition,
+      chargePosition,
+      rtkPosition
+    };
+  }
+
+  _normalizePose(candidate) {
+    if (!candidate || typeof candidate !== "object") return null;
+
+    const x = this._pickNumeric(candidate, ["x", "X", "posX", "px"]);
+    const y = this._pickNumeric(candidate, ["y", "Y", "posY", "py"]);
+    const a = this._pickNumeric(candidate, ["a", "A", "angle", "theta", "yaw", "posA", "pa"]);
+
+    if (x === null || y === null) return null;
+
+    const normalized = {
+      ...candidate,
+      x,
+      y,
+      a: a ?? 0
+    };
+
+    return normalized;
+  }
+
+  _normalizePoseArray(rawValue) {
+    const items = Array.isArray(rawValue) ? rawValue : rawValue ? [rawValue] : [];
+    const normalized = items
+      .map((entry) => this._normalizePose(entry))
+      .filter((entry) => entry !== null);
+
+    return normalized;
   }
 
   _pickNumeric(source, keys) {
