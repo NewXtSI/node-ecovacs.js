@@ -267,8 +267,8 @@ goat.getError()         // [error codes] or null
 goat.getProtectState()  // getProtectState/onProtectState payload
 goat.getAreaSet()       // getAreaSet/onAreaSet payload
 goat.getAreaParameter() // getAreaParameter/onAreaParameter payload
-goat.getGeolocation()   // { enable, geoLocation: { longitude, latitude } }
-goat.getMowInfo()       // { state, type, trigger, cleanState }
+goat.getGeolocation()   // { enable, geoLocation: { longitude, latitude } }goat.getFwBuryPoints()  // { [substate]: data, ... } object with all last FwBuryPoint messages
+goat.getFwBuryPoint('bd_basicinfo') // Get specific substate data or nullgoat.getMowInfo()       // { state, type, trigger, cleanState }
 goat.getMowState()      // 'mow' | 'dock' | ... | null
 goat.getMowCommand()    // { act, type, value, parsed, ts } or null
 ```
@@ -352,6 +352,10 @@ goat.on('areaParameter', (params) => {
   console.log('Area parameter update', params);
 });
 
+goat.on('fwBuryPoint', (msg) => {
+  console.log(`Firmware message [${msg.substate}]`, msg.data);
+});
+
 goat.on('rawMessage', (msg) => {
   console.log('Raw MQTT message', msg.topicName, msg.payloadRaw);
 });
@@ -386,8 +390,21 @@ Available callback events:
 - `protectState`
 - `areaSet`
 - `areaParameter`
+- `fwBuryPoint`
 - `geolocation`
 - `rawMessage`
+
+`fwBuryPoint` payload shape:
+
+```javascript
+{
+  substate: string,  // e.g. 'bd_basicinfo', 'bd_reedvoltage', 'bd_machine'
+  data: object       // Body content from onFwBuryPoint-[substate] message
+}
+```
+
+All `onFwBuryPoint-*` messages are aggregated into the `fwBuryPoint` callback by their substate.
+When using whitelist/blacklist filters, you can treat all `onFwBuryPoint-*` topics as a single `onFwBuryPoint` entry.
 
 `rawMessage` payload shape:
 
@@ -414,6 +431,15 @@ goat.setRawCallbackFilter({
   blacklist: ['onMapTrace'],
   unhandledOnly: true
 });
+
+// Filter all FwBuryPoint messages together
+goat.setRawCallbackFilter({
+  whitelist: ['onFwBuryPoint'],  // Include all onFwBuryPoint-* messages
+  unhandledOnly: false           // Include despite having dedicated callback
+});
+
+// Or use the convenience method:
+goat.setRawCallbackWhitelist(['onFwBuryPoint']);
 
 // Convenience methods
 goat.setRawCallbackWhitelist(['onFwBuryPoint-bd_basicinfo']);

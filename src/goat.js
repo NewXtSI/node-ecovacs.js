@@ -45,6 +45,7 @@ export class Goat {
       protectState: null, // getProtectState / onProtectState payload
       areaSet: null,    // getAreaSet / onAreaSet payload
       areaParameter: null, // getAreaParameter / onAreaParameter payload
+      fwBuryPoints: {},    // { substate: { substate, data } } for all onFwBuryPoint-* messages
       geolocation: null, // { enable, geoLocation: { longitude, latitude } }
       mowCommand: null  // { act, type, value, content, parsed, ts }
     };
@@ -69,6 +70,7 @@ export class Goat {
       protectState: [],
       areaSet: [],
       areaParameter: [],
+      fwBuryPoint: [],
       geolocation: [],
       mowCommand: [],
       rawMessage: [],
@@ -498,6 +500,20 @@ export class Goat {
           this.callCallback("lifeSpan", updated);
         }
       }
+
+      if (topicName && topicName.startsWith("onFwBuryPoint-")) {
+        const substate = topicName.replace(/^onFwBuryPoint-/, "");
+        const bodyData = payload?.body;
+        if (substate && bodyData) {
+          const prev = this.state.fwBuryPoints[substate];
+          if (prev && this.jsonEqual(prev, bodyData)) return;
+          this.state.fwBuryPoints[substate] = bodyData;
+          this.callCallback("fwBuryPoint", {
+            substate,
+            data: bodyData
+          });
+        }
+      }
     } catch {
       // Silently ignore parse errors
     }
@@ -508,7 +524,7 @@ export class Goat {
       return false;
     }
 
-    return [
+    const directTopics = [
       "onPos", "getPos",
       "onBattery", "getBattery",
       "onSleep", "getSleep",
@@ -528,7 +544,18 @@ export class Goat {
       "getTotalStats",
       "getNetInfo",
       "getLifeSpan"
-    ].includes(topicName);
+    ];
+
+    if (directTopics.includes(topicName)) {
+      return true;
+    }
+
+    // onFwBuryPoint-* topics are handled by the fwBuryPoint aggregator
+    if (topicName.startsWith("onFwBuryPoint-")) {
+      return true;
+    }
+
+    return false;
   }
 
   topicMatchesFilterEntry(entry, { topicName, fullTopic }) {
@@ -1035,6 +1062,17 @@ export class Goat {
 
   getGeolocation() {
     return this.state.geolocation;
+  }
+
+  getFwBuryPoints() {
+    return this.state.fwBuryPoints;
+  }
+
+  getFwBuryPoint(substate) {
+    if (!substate) {
+      return null;
+    }
+    return this.state.fwBuryPoints[substate] || null;
   }
 
   async mowArea(areaIds) {
