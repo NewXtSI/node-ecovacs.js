@@ -267,8 +267,23 @@ goat.getError()         // [error codes] or null
 goat.getProtectState()  // getProtectState/onProtectState payload
 goat.getAreaSet()       // getAreaSet/onAreaSet payload
 goat.getAreaParameter() // getAreaParameter/onAreaParameter payload
-goat.getGeolocation()   // { enable, geoLocation: { longitude, latitude } }goat.getFwBuryPoints()  // { [substate]: data, ... } object with all last FwBuryPoint messages
-goat.getFwBuryPoint('bd_basicinfo') // Get specific substate data or nullgoat.getMowInfo()       // { state, type, trigger, cleanState }
+goat.getGeolocation()   // { enable, geoLocation: { longitude, latitude } }
+goat.getFwBuryPoints()  // { [substate]: data, ... } object with all last FwBuryPoint messages
+goat.getFwBuryPoint('bd_basicinfo') // Get specific substate data or null
+
+// Info fields (lazy-loaded via getInfo, automatically requested on first access if null)
+goat.getCutEfficiency()     // { level }
+goat.getObstacleHeight()    // { level }
+goat.getCutHeight()         // { level }
+goat.getCutDirection()      // { angle, set }
+goat.getAutoCutDirection()  // { enable }
+goat.getRainDelay()         // { enable, delay }
+goat.getAnimProtect()       // { ... }
+goat.getTimeZone()          // { ... }
+goat.getCustomCutMode()     // { ... }
+goat.getBorderSwitch()      // { ... }
+
+goat.getMowInfo()       // { state, type, trigger, cleanState }
 goat.getMowState()      // 'mow' | 'dock' | ... | null
 goat.getMowCommand()    // { act, type, value, parsed, ts } or null
 ```
@@ -352,6 +367,14 @@ goat.on('areaParameter', (params) => {
   console.log('Area parameter update', params);
 });
 
+goat.on('customCutMode', (data) => {
+  console.log('Custom cut mode update', data);
+});
+
+goat.on('borderSwitch', (data) => {
+  console.log('Border switch update', data);
+});
+
 goat.on('fwBuryPoint', (msg) => {
   console.log(`Firmware message [${msg.substate}]`, msg.data);
 });
@@ -391,6 +414,16 @@ Available callback events:
 - `areaSet`
 - `areaParameter`
 - `fwBuryPoint`
+- `cutEfficiency`
+- `obstacleHeight`
+- `cutHeight`
+- `cutDirection`
+- `autoCutDirection`
+- `rainDelay`
+- `animProtect`
+- `timeZone`
+- `customCutMode`
+- `borderSwitch`
 - `geolocation`
 - `rawMessage`
 
@@ -472,6 +505,41 @@ Whitelist/blacklist entries can be either short topic names (`onStats`) or full 
 | `getAreaSet`, `onAreaSet` | `state.areaSet` | `areaSet` | `getAreaSet()` | yes (`getAreaSet`) |
 | `getAreaParameter`, `onAreaParameter` | `state.areaParameter` | `areaParameter` | `getAreaParameter()` | yes (`getAreaParameter`) |
 | `getGeolocation` | `state.geolocation` | `geolocation` | `getGeolocation()` | no |
+| `getInfo` (lazy) | `state.cutEfficiency`, `cutObstacleHeight`, `cutHeight`, `cutDirection`, `autoCutDirection`, `rainDelay`, `animProtect`, `timeZone`, `customCutMode`, `borderSwitch` | `cutEfficiency`, `obstacleHeight`, `cutHeight`, `cutDirection`, `autoCutDirection`, `rainDelay`, `animProtect`, `timeZone`, `customCutMode`, `borderSwitch` | `getCutEfficiency()`, `getObstacleHeight()`, etc. | no (triggered by getter if null) |
+
+##### Info Fields (Lazy-Loaded)
+
+The device provides additional device-specific info that is not automatically pushed via MQTT, but can be queried via `getInfo` API.
+When you access any info field getter, if the value is `null`, the getter automatically triggers a `getInfo` request.
+The getInfo response contains all 10 info fields, which arrive moments later and trigger their respective callbacks when updated.
+
+Supported info fields:
+- `cutEfficiency` - { level }
+- `obstacleHeight` - { level }
+- `cutHeight` - { level }
+- `cutDirection` - { angle, set }
+- `autoCutDirection` - { enable }
+- `rainDelay` - { enable, delay }
+- `animProtect` - { ... }
+- `timeZone` - { ... }
+- `customCutMode` - { ... }
+- `borderSwitch` - { ... }
+
+```javascript
+// On first access, lazy-loads via getInfo if value is null
+const direction = goat.getCutDirection();  // null, but getInfo request sent
+
+// Listen for the response
+goat.on('cutDirection', (data) => {
+  console.log('Cut direction updated:', data);
+});
+
+// Or manually request info fields
+await goat.requestInfoFields(['cutDirection', 'cutHeight']);
+
+// Request all info fields
+await goat.requestInfoFields();
+```
 
 ##### Disconnect
 

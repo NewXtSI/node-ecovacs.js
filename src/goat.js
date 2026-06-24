@@ -46,6 +46,17 @@ export class Goat {
       areaSet: null,    // getAreaSet / onAreaSet payload
       areaParameter: null, // getAreaParameter / onAreaParameter payload
       fwBuryPoints: {},    // { substate: { substate, data } } for all onFwBuryPoint-* messages
+      // Info fields (lazy-loaded via getInfo)
+      cutEfficiency: null,    // { level }
+      obstacleHeight: null,   // { level }
+      cutHeight: null,        // { level }
+      cutDirection: null,     // { angle, set }
+      autoCutDirection: null, // { enable }
+      rainDelay: null,        // { enable, delay }
+      animProtect: null,      // { ... }
+      timeZone: null,         // { ... }
+      customCutMode: null,    // { ... }
+      borderSwitch: null,     // { ... }
       geolocation: null, // { enable, geoLocation: { longitude, latitude } }
       mowCommand: null  // { act, type, value, content, parsed, ts }
     };
@@ -71,6 +82,16 @@ export class Goat {
       areaSet: [],
       areaParameter: [],
       fwBuryPoint: [],
+      cutEfficiency: [],
+      obstacleHeight: [],
+      cutHeight: [],
+      cutDirection: [],
+      autoCutDirection: [],
+      rainDelay: [],
+      animProtect: [],
+      timeZone: [],
+      customCutMode: [],
+      borderSwitch: [],
       geolocation: [],
       mowCommand: [],
       rawMessage: [],
@@ -514,6 +535,13 @@ export class Goat {
           });
         }
       }
+
+      if (topicName === "getInfo") {
+        const data = payload?.body?.data;
+        if (data && typeof data === "object") {
+          this.handleGetInfoResponse(data);
+        }
+      }
     } catch {
       // Silently ignore parse errors
     }
@@ -543,7 +571,8 @@ export class Goat {
       "getGeolocation",
       "getTotalStats",
       "getNetInfo",
-      "getLifeSpan"
+      "getLifeSpan",
+      "getInfo"
     ];
 
     if (directTopics.includes(topicName)) {
@@ -661,6 +690,34 @@ export class Goat {
     }
 
     return fallback;
+  }
+
+  handleGetInfoResponse(data) {
+    const infoFields = [
+      "cutEfficiency",
+      "obstacleHeight",
+      "cutHeight",
+      "cutDirection",
+      "autoCutDirection",
+      "rainDelay",
+      "animProtect",
+      "timeZone",
+      "customCutMode",
+      "borderSwitch"
+    ];
+
+    for (const fieldName of infoFields) {
+      const commandName = `get${fieldName.charAt(0).toUpperCase()}${fieldName.slice(1)}`;
+      const infoResponse = data[commandName];
+
+      if (infoResponse && infoResponse.data && (typeof infoResponse.code === "undefined" || infoResponse.code === 0)) {
+        const fieldData = infoResponse.data;
+        const prev = this.state[fieldName];
+        if (prev && this.jsonEqual(prev, fieldData)) continue;
+        this.state[fieldName] = fieldData;
+        this.callCallback(fieldName, fieldData);
+      }
+    }
   }
 
   toMowState(stateValue) {
@@ -961,6 +1018,100 @@ export class Goat {
 
   setRawCallbackUnhandledOnly(enabled) {
     return this.setRawCallbackFilter({ unhandledOnly: enabled });
+  }
+
+  async requestInfoFields(fieldNames = null) {
+    this.ensureConnectedForCommand();
+    
+    const fields = Array.isArray(fieldNames) ? fieldNames : [
+      "cutEfficiency", "obstacleHeight", "cutHeight", "cutDirection",
+      "autoCutDirection", "rainDelay", "animProtect", "timeZone",
+      "customCutMode", "borderSwitch"
+    ];
+
+    const getCommands = fields.map((field) => {
+      return `get${field.charAt(0).toUpperCase()}${field.slice(1)}`;
+    });
+
+    try {
+      return await this.commander.sendCommand(this.device, {
+        name: "getInfo",
+        data: getCommands
+      });
+    } catch (error) {
+      this.logger?.warn("Failed to request info fields", { fields, error: error.message });
+      return null;
+    }
+  }
+
+  getCutEfficiency() {
+    if (!this.state.cutEfficiency) {
+      this.requestInfoFields(["cutEfficiency"]).catch(() => {});
+    }
+    return this.state.cutEfficiency;
+  }
+
+  getObstacleHeight() {
+    if (!this.state.obstacleHeight) {
+      this.requestInfoFields(["obstacleHeight"]).catch(() => {});
+    }
+    return this.state.obstacleHeight;
+  }
+
+  getCutHeight() {
+    if (!this.state.cutHeight) {
+      this.requestInfoFields(["cutHeight"]).catch(() => {});
+    }
+    return this.state.cutHeight;
+  }
+
+  getCutDirection() {
+    if (!this.state.cutDirection) {
+      this.requestInfoFields(["cutDirection"]).catch(() => {});
+    }
+    return this.state.cutDirection;
+  }
+
+  getAutoCutDirection() {
+    if (!this.state.autoCutDirection) {
+      this.requestInfoFields(["autoCutDirection"]).catch(() => {});
+    }
+    return this.state.autoCutDirection;
+  }
+
+  getRainDelay() {
+    if (!this.state.rainDelay) {
+      this.requestInfoFields(["rainDelay"]).catch(() => {});
+    }
+    return this.state.rainDelay;
+  }
+
+  getAnimProtect() {
+    if (!this.state.animProtect) {
+      this.requestInfoFields(["animProtect"]).catch(() => {});
+    }
+    return this.state.animProtect;
+  }
+
+  getTimeZone() {
+    if (!this.state.timeZone) {
+      this.requestInfoFields(["timeZone"]).catch(() => {});
+    }
+    return this.state.timeZone;
+  }
+
+  getCustomCutMode() {
+    if (!this.state.customCutMode) {
+      this.requestInfoFields(["customCutMode"]).catch(() => {});
+    }
+    return this.state.customCutMode;
+  }
+
+  getBorderSwitch() {
+    if (!this.state.borderSwitch) {
+      this.requestInfoFields(["borderSwitch"]).catch(() => {});
+    }
+    return this.state.borderSwitch;
   }
 
   off(event, callback) {
