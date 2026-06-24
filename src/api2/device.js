@@ -22,12 +22,14 @@ export class Api2Device extends EventEmitter {
     // Internal state store.  Each property starts as UNSET (never received)
     // so the first ingested value always triggers an event even if it is null.
     this._state = {
+      position: UNSET,       // { x, y, a }
       stats: UNSET,          // { time, area, mowedArea }
       lastTimeStats: UNSET,  // { cid, start, type, stop, area, time }
       totalStats: UNSET,     // { area, time, count }
       battery: UNSET,        // { value, isLow }
       chargeState: UNSET,    // { isCharging, mode }
       chargeInfo: UNSET,     // { cid, trigger, state, other }
+      mowInfo: UNSET,        // { trigger, other, state, type, cleanState }
       geolocation: UNSET,    // { enable, geoLocation: { longitude, latitude } }
       protectState: UNSET,   // onProtectState payload
       netInfo: UNSET,        // { ip, ssid, rssi, wkVer, mac }
@@ -140,6 +142,11 @@ export class Api2Device extends EventEmitter {
     return this._getOrRequest("battery");
   }
 
+  /** Returns current position or null; auto-polls via getPos if not yet received. */
+  getPosition() {
+    return this._getOrRequest("position");
+  }
+
   /** Returns current charge state or null; auto-polls via getChargeState if not yet received. */
   getChargeState() {
     return this._getOrRequest("chargeState");
@@ -148,6 +155,16 @@ export class Api2Device extends EventEmitter {
   /** Returns current charge info or null; auto-polls via getChargeInfo if not yet received. */
   getChargeInfo() {
     return this._getOrRequest("chargeInfo");
+  }
+
+  /** Returns current mow info or null; auto-polls via getCleanInfo if not yet received. */
+  getMowInfo() {
+    return this._getOrRequest("mowInfo");
+  }
+
+  /** Returns current mapped mow state (`clean` -> `mow`) or null. */
+  getMowState() {
+    return this.getMowInfo()?.state ?? null;
   }
 
   // ─── State: geolocation / protectState / netInfo / sleep / error / lifeSpan
@@ -396,6 +413,12 @@ export class Api2Device extends EventEmitter {
    */
   _ingestTopicData(topicName, data) {
     switch (topicName) {
+      case "getPos":
+      case "onPos": {
+        const normalizedPos = this._normalizePosition(data);
+        if (normalizedPos) this._updateState("position", normalizedPos);
+        break;
+      }
       case "getStats":
       case "onStats":
         this._updateState("stats", data);
@@ -419,6 +442,12 @@ export class Api2Device extends EventEmitter {
       case "onChargeInfo":
         this._updateState("chargeInfo", data);
         break;
+      case "getCleanInfo":
+      case "onCleanInfo": {
+        const normalizedMowInfo = this._normalizeMowInfo(data);
+        if (normalizedMowInfo) this._updateState("mowInfo", normalizedMowInfo);
+        break;
+      }
       case "getGeolocation":
         this._updateState("geolocation", data);
         break;
@@ -535,8 +564,76 @@ export class Api2Device extends EventEmitter {
     // Returns a string command name or a { name, data } object for commands
     // that require extra body data.
     const map = {
-      lifeSpan: { name: "getLifeSpan", data: { type: ["blade", "lensBrush"] } }
+      lifeSpan: { name: "getLifeSpan", data: { type: ["blade", "lensBrush"] } },
+      mowInfo: "getCleanInfo",
+      position: "getPos"
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+  }
+
+  _normalizeMowInfo(data) {
+    if (!data || typeof data !== "object") return null;
+    if (typeof data.state === "undefined") return null;
+
+    return {
+      trigger: data.trigger ?? null,
+      other: data.other ?? null,
+      state: this._toMowState(data.state),
+      type: this._toMowType(data.cleanState),
+      cleanState: data.cleanState ?? null
+    };
+  }
+
+  _toMowState(stateValue) {
+    return stateValue === "clean" ? "mow" : stateValue;
+  }
+
+  _toMowType(cleanState) {
+    const typeFromContent = cleanState?.content?.type;
+    if (typeof typeFromContent === "string" && typeFromContent.length > 0) {
+      return typeFromContent;
+    }
+
+    const typeFromSubContent = cleanState?.content?.subContent?.type;
+    if (typeof typeFromSubContent === "string" && typeFromSubContent.length > 0) {
+      return typeFromSubContent;
+    }
+
+    return null;
+  }
+
+  _normalizePosition(data) {
+    if (!data || typeof data !== "object") return null;
+
+    const candidates = [
+      data.deebotPos,
+      data.pos,
+      data.position,
+      data.rtkPos,
+      data.gnssPos,
+      data
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== "object") continue;
+
+      const x = this._pickNumeric(candidate, ["x", "X", "posX", "px"]);
+      const y = this._pickNumeric(candidate, ["y", "Y", "posY", "py"]);
+      const a = this._pickNumeric(candidate, ["a", "A", "angle", "theta", "yaw", "posA", "pa"]);
+
+      if (x !== null && y !== null) {
+        return { x, y, a: a ?? 0 };
+      }
+    }
+
+    return null;
+  }
+
+  _pickNumeric(source, keys) {
+    for (const key of keys) {
+      const value = Number(source?.[key]);
+      if (Number.isFinite(value)) return value;
+    }
+    return null;
   }
 }

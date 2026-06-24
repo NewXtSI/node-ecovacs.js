@@ -193,9 +193,10 @@ Legende:
 | `lastTimeStats` | ✅ `lastTimeStats` | ✅ `getLastTimeStats()` | ✅ `onLastTimeStats` | `getLastTimeStats` | — |
 | `totalStats` | ✅ `totalStats` | ✅ `getTotalStats()` | — | `getTotalStats` | — |
 | `battery` | ✅ `battery` | ✅ `getBattery()` | ✅ `onBattery` | `getBattery` | — |
+| `position` | ✅ `position` | ✅ `getPosition()` | ✅ `onPos` | `getPos` | — |
 | `chargeState` | ✅ `chargeState` | ✅ `getChargeState()` | ✅ `onChargeState` | `getChargeState` | — |
 | `chargeInfo` | ✅ `chargeInfo` | ✅ `getChargeInfo()` | ✅ `onChargeInfo` | `getChargeInfo` | — |
-| `mowInfo` | ⬜ | ⬜ | ⬜ `onCleanInfo` | `getCleanInfo` | — |
+| `mowInfo` | ✅ `mowInfo` | ✅ `getMowInfo()` / `getMowState()` | ✅ `onCleanInfo` | `getCleanInfo` | — |
 | `mowCommand` | ⬜ | ⬜ | ⬜ `clean` (p2p/q) | — | ⬜ `mowArea` / `mowBorder` / `pause` / `resume` / `stop` |
 | `error` | ✅ `error` | ✅ `getError()` | ✅ `onError` | `getError` | — |
 | `sleep` | ✅ `sleep` | ✅ `getSleep()` | — | `getSleep` | — |
@@ -223,6 +224,8 @@ Legende:
 > ¹ `getLifeSpan` benötigt einen Body-Parameter `{ type: ["blade", "lensBrush"] }`. Dieser wird intern automatisch mitgesendet.
 
 > ² Direkter Command + `getInfo`-Fallback-Mapping.
+
+> ³ `position` normalisiert mehrere mögliche Payload-Felder (z. B. `deebotPos`, `pos`, `position`, `rtkPos`) auf `{ x, y, a }`.
 
 ---
 

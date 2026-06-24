@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { Api2Factory } from "./src/api2/index.js";
 
+const RUN_SETTER_TESTS = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_RUN_SETTER_TESTS || "").trim().toLowerCase()
+);
+
 async function loadCredentials() {
   const raw = await readFile("./credentials.json", "utf8");
   const parsed = JSON.parse(raw);
@@ -153,12 +157,20 @@ async function main() {
       console.log(`[${device.name}] battery:`, data);
     });
 
+    device.on("position", (data) => {
+      console.log(`[${device.name}] position:`, data);
+    });
+
     device.on("chargeState", (data) => {
       console.log(`[${device.name}] chargeState:`, data);
     });
 
     device.on("chargeInfo", (data) => {
       console.log(`[${device.name}] chargeInfo:`, data);
+    });
+
+    device.on("mowInfo", (data) => {
+      console.log(`[${device.name}] mowInfo:`, data);
     });
 
     device.on("geolocation", (data) => {
@@ -230,8 +242,11 @@ async function main() {
     console.log("getLastTimeStats() =", device.getLastTimeStats());
     console.log("getTotalStats() =", device.getTotalStats());
     console.log("getBattery() =", device.getBattery());
+    console.log("getPosition() =", device.getPosition());
     console.log("getChargeState() =", device.getChargeState());
     console.log("getChargeInfo() =", device.getChargeInfo());
+    console.log("getMowInfo() =", device.getMowInfo());
+    console.log("getMowState() =", device.getMowState());
     console.log("getGeolocation() =", device.getGeolocation());
     console.log("getProtectState() =", device.getProtectState());
     console.log("getNetInfo() =", device.getNetInfo());
@@ -249,122 +264,126 @@ async function main() {
     console.log("getCustomCutMode() =", device.getCustomCutMode());
     console.log("getBorderSwitch() =", device.getBorderSwitch());
 
-    // Wait 5s after script start before setter test.
-    console.log("Waiting 5s before obstacleHeight setter test…");
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    if (RUN_SETTER_TESTS) {
+      // Wait 5s after script start before setter test.
+      console.log("Waiting 5s before obstacleHeight setter test…");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
-    // 1) Read current obstacleHeight (or fetch if still null)
-    let before = device.getObstacleHeight();
-    if (!before || typeof before.level === "undefined") {
-      await device.sendCommand("getObstacleHeight");
-      before = await waitForEvent(device, "obstacleHeight", 7000);
-    }
+      // 1) Read current obstacleHeight (or fetch if still null)
+      let before = device.getObstacleHeight();
+      if (!before || typeof before.level === "undefined") {
+        await device.sendCommand("getObstacleHeight");
+        before = await waitForEvent(device, "obstacleHeight", 7000);
+      }
 
-    const beforeLevel = Number(before?.level);
-    if (!Number.isFinite(beforeLevel)) {
-      throw new Error(`obstacleHeight.level is not numeric: ${JSON.stringify(before)}`);
-    }
+      const beforeLevel = Number(before?.level);
+      if (!Number.isFinite(beforeLevel)) {
+        throw new Error(`obstacleHeight.level is not numeric: ${JSON.stringify(before)}`);
+      }
 
-    const lowerLevel = Math.max(0, beforeLevel - 1);
-    console.log(`Setter test obstacleHeight: before=${beforeLevel}, lower=${lowerLevel}`);
+      const lowerLevel = Math.max(0, beforeLevel - 1);
+      console.log(`Setter test obstacleHeight: before=${beforeLevel}, lower=${lowerLevel}`);
 
-    // 2) Set lower value, then read back
-    await device.setObstacleHeight(lowerLevel);
-    const afterLower = await waitForEvent(device, "obstacleHeight", 7000);
-    console.log("obstacleHeight after lower set:", afterLower);
+      // 2) Set lower value, then read back
+      await device.setObstacleHeight(lowerLevel);
+      const afterLower = await waitForEvent(device, "obstacleHeight", 7000);
+      console.log("obstacleHeight after lower set:", afterLower);
 
-    // 3) Restore original value, then read back again
-    await device.setObstacleHeight(beforeLevel);
-    const afterRestore = await waitForEvent(device, "obstacleHeight", 7000);
-    console.log("obstacleHeight after restore:", afterRestore);
+      // 3) Restore original value, then read back again
+      await device.setObstacleHeight(beforeLevel);
+      const afterRestore = await waitForEvent(device, "obstacleHeight", 7000);
+      console.log("obstacleHeight after restore:", afterRestore);
 
-    console.log("Setter test completed.");
+      console.log("Setter test completed.");
 
-    // Additional setter roundtrips for newly implemented API2 setters.
-    // Each block is isolated so one failing setter does not stop the others.
-    const setterTests = [
-      {
-        label: "cutHeight",
-        eventName: "cutHeight",
-        getter: () => device.getCutHeight(),
-        requestCommand: "getCutHeight",
-        setter: (value) => device.setCutHeight(value.level),
-        buildTarget: (before) => {
-          const level = toNumberOrNull(before?.level);
-          if (level === null) {
-            throw new Error(`cutHeight.level is not numeric: ${JSON.stringify(before)}`);
+      // Additional setter roundtrips for newly implemented API2 setters.
+      // Each block is isolated so one failing setter does not stop the others.
+      const setterTests = [
+        {
+          label: "cutHeight",
+          eventName: "cutHeight",
+          getter: () => device.getCutHeight(),
+          requestCommand: "getCutHeight",
+          setter: (value) => device.setCutHeight(value.level),
+          buildTarget: (before) => {
+            const level = toNumberOrNull(before?.level);
+            if (level === null) {
+              throw new Error(`cutHeight.level is not numeric: ${JSON.stringify(before)}`);
+            }
+            return { level: Math.max(0, level - 1) };
           }
-          return { level: Math.max(0, level - 1) };
+        },
+        {
+          label: "cutDirection",
+          eventName: "cutDirection",
+          getter: () => device.getCutDirection(),
+          requestCommand: "getCutDirection",
+          setter: (value) => device.setCutDirection(value),
+          buildTarget: (before) => {
+            const angle = toNumberOrNull(before?.angle);
+            const set = toNumberOrNull(before?.set);
+            if (angle === null || set === null) {
+              throw new Error(`cutDirection payload invalid: ${JSON.stringify(before)}`);
+            }
+            return { angle: (angle + 1) % 360, set };
+          }
+        },
+        {
+          label: "rainDelay",
+          eventName: "rainDelay",
+          getter: () => device.getRainDelay(),
+          requestCommand: "getRainDelay",
+          setter: (value) => device.setRainDelay(value),
+          buildTarget: (before) => {
+            const delay = toNumberOrNull(before?.delay);
+            const enable = toNumberOrNull(before?.enable);
+            if (delay === null || enable === null) {
+              throw new Error(`rainDelay payload invalid: ${JSON.stringify(before)}`);
+            }
+            const nextDelay = delay >= 10 ? delay - 10 : delay + 10;
+            return { delay: nextDelay, enable };
+          }
+        },
+        {
+          label: "borderSwitch",
+          eventName: "borderSwitch",
+          getter: () => device.getBorderSwitch(),
+          requestCommand: "getBorderSwitch",
+          setter: (value) => device.setBorderSwitch(value),
+          buildTarget: (before) => {
+            const mode = toNumberOrNull(before?.mode);
+            const enable = toNumberOrNull(before?.enable);
+            if (mode === null || enable === null) {
+              throw new Error(`borderSwitch payload invalid: ${JSON.stringify(before)}`);
+            }
+
+            // Commonly observed modes are 1 and 2. Flip between them for a minimal roundtrip.
+            const nextMode = mode === 2 ? 1 : 2;
+            return { mode: nextMode, enable };
+          }
         }
-      },
-      {
-        label: "cutDirection",
-        eventName: "cutDirection",
-        getter: () => device.getCutDirection(),
-        requestCommand: "getCutDirection",
-        setter: (value) => device.setCutDirection(value),
-        buildTarget: (before) => {
-          const angle = toNumberOrNull(before?.angle);
-          const set = toNumberOrNull(before?.set);
-          if (angle === null || set === null) {
-            throw new Error(`cutDirection payload invalid: ${JSON.stringify(before)}`);
-          }
-          return { angle: (angle + 1) % 360, set };
-        }
-      },
-      {
-        label: "rainDelay",
-        eventName: "rainDelay",
-        getter: () => device.getRainDelay(),
-        requestCommand: "getRainDelay",
-        setter: (value) => device.setRainDelay(value),
-        buildTarget: (before) => {
-          const delay = toNumberOrNull(before?.delay);
-          const enable = toNumberOrNull(before?.enable);
-          if (delay === null || enable === null) {
-            throw new Error(`rainDelay payload invalid: ${JSON.stringify(before)}`);
-          }
-          const nextDelay = delay >= 10 ? delay - 10 : delay + 10;
-          return { delay: nextDelay, enable };
-        }
-      },
-      {
-        label: "borderSwitch",
-        eventName: "borderSwitch",
-        getter: () => device.getBorderSwitch(),
-        requestCommand: "getBorderSwitch",
-        setter: (value) => device.setBorderSwitch(value),
-        buildTarget: (before) => {
-          const mode = toNumberOrNull(before?.mode);
-          const enable = toNumberOrNull(before?.enable);
-          if (mode === null || enable === null) {
-            throw new Error(`borderSwitch payload invalid: ${JSON.stringify(before)}`);
-          }
+      ];
 
-          // Commonly observed modes are 1 and 2. Flip between them for a minimal roundtrip.
-          const nextMode = mode === 2 ? 1 : 2;
-          return { mode: nextMode, enable };
+      for (const spec of setterTests) {
+        try {
+          console.log(`\n--- Setter roundtrip: ${spec.label} ---`);
+          await runSetterRoundtrip({
+            device,
+            label: spec.label,
+            eventName: spec.eventName,
+            getter: spec.getter,
+            requestCommand: spec.requestCommand,
+            setter: spec.setter,
+            buildTarget: spec.buildTarget,
+            timeoutMs: 9000
+          });
+          console.log(`[setter:${spec.label}] roundtrip successful`);
+        } catch (error) {
+          console.error(`[setter:${spec.label}] roundtrip FAILED:`, error.message);
         }
       }
-    ];
-
-    for (const spec of setterTests) {
-      try {
-        console.log(`\n--- Setter roundtrip: ${spec.label} ---`);
-        await runSetterRoundtrip({
-          device,
-          label: spec.label,
-          eventName: spec.eventName,
-          getter: spec.getter,
-          requestCommand: spec.requestCommand,
-          setter: spec.setter,
-          buildTarget: spec.buildTarget,
-          timeoutMs: 9000
-        });
-        console.log(`[setter:${spec.label}] roundtrip successful`);
-      } catch (error) {
-        console.error(`[setter:${spec.label}] roundtrip FAILED:`, error.message);
-      }
+    } else {
+      console.log("Setter tests skipped (set API2_RUN_SETTER_TESTS=1 to enable).");
     }
   }
 
