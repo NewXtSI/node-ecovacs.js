@@ -24,7 +24,10 @@ export class Api2Device extends EventEmitter {
     this._state = {
       stats: UNSET,          // { time, area, mowedArea }
       lastTimeStats: UNSET,  // { cid, start, type, stop, area, time }
-      totalStats: UNSET      // { area, time, count }
+      totalStats: UNSET,     // { area, time, count }
+      battery: UNSET,        // { value, isLow }
+      chargeState: UNSET,    // { isCharging, mode }
+      chargeInfo: UNSET      // onChargeInfo payload
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -111,6 +114,23 @@ export class Api2Device extends EventEmitter {
     return this._getOrRequest("totalStats");
   }
 
+  // ─── State: battery / chargeState / chargeInfo ───────────────────────────
+
+  /** Returns current battery state or null; auto-polls via getBattery if not yet received. */
+  getBattery() {
+    return this._getOrRequest("battery");
+  }
+
+  /** Returns current charge state or null; auto-polls via getChargeState if not yet received. */
+  getChargeState() {
+    return this._getOrRequest("chargeState");
+  }
+
+  /** Returns current charge info or null; auto-polls via getChargeInfo if not yet received. */
+  getChargeInfo() {
+    return this._getOrRequest("chargeInfo");
+  }
+
   /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */
   _getOrRequest(key) {
     if (this._state[key] === UNSET) {
@@ -138,6 +158,18 @@ export class Api2Device extends EventEmitter {
         break;
       case "getTotalStats":
         this._updateState("totalStats", data);
+        break;
+      case "getBattery":
+      case "onBattery":
+        this._updateState("battery", data);
+        break;
+      case "getChargeState":
+      case "onChargeState":
+        this._updateState("chargeState", data);
+        break;
+      case "getChargeInfo":
+      case "onChargeInfo":
+        this._updateState("chargeInfo", data);
         break;
       default:
         // Emit a generic 'unknownTopic' event so the consumer can react if needed.

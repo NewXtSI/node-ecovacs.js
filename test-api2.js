@@ -73,10 +73,25 @@ async function main() {
       console.log(`[${device.name}] totalStats:`, data);
     });
 
-    // Explicitly call all three getters.
+    device.on("battery", (data) => {
+      console.log(`[${device.name}] battery:`, data);
+    });
+
+    device.on("chargeState", (data) => {
+      console.log(`[${device.name}] chargeState:`, data);
+    });
+
+    device.on("chargeInfo", (data) => {
+      console.log(`[${device.name}] chargeInfo:`, data);
+    });
+
+    // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());
     console.log("getTotalStats() =", device.getTotalStats());
+    console.log("getBattery() =", device.getBattery());
+    console.log("getChargeState() =", device.getChargeState());
+    console.log("getChargeInfo() =", device.getChargeInfo());
 
     // Wait for the reply to arrive via MQTT (onStats / getStats response).
     console.log("Waiting for stats reply…");

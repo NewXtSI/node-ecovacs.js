@@ -192,10 +192,9 @@ Legende:
 | `stats` | ✅ `stats` | ✅ `getStats()` | ✅ `onStats` | `getStats` | — |
 | `lastTimeStats` | ✅ `lastTimeStats` | ✅ `getLastTimeStats()` | ✅ `onLastTimeStats` | `getLastTimeStats` | — |
 | `totalStats` | ✅ `totalStats` | ✅ `getTotalStats()` | — | `getTotalStats` | — |
-| `battery` | ⬜ | ⬜ | ⬜ `onBattery` | `getBattery` | — |
-| `position` | ⬜ | ⬜ | ⬜ `onPos` | `getPos` | ⬜ `setPos` |
-| `chargeState` | ⬜ | ⬜ | ⬜ `onChargeState` | `getChargeState` | — |
-| `chargeInfo` | ⬜ | ⬜ | ⬜ `onChargeInfo` | `getChargeInfo` | — |
+| `battery` | ✅ `battery` | ✅ `getBattery()` | ✅ `onBattery` | `getBattery` | — |
+| `chargeState` | ✅ `chargeState` | ✅ `getChargeState()` | ✅ `onChargeState` | `getChargeState` | — |
+| `chargeInfo` | ✅ `chargeInfo` | ✅ `getChargeInfo()` | ✅ `onChargeInfo` | `getChargeInfo` | — |
 | `mowInfo` | ⬜ | ⬜ | ⬜ `onCleanInfo` | `getCleanInfo` | — |
 | `mowCommand` | ⬜ | ⬜ | ⬜ `clean` (p2p/q) | — | ⬜ `mowArea` / `mowBorder` / `pause` / `resume` / `stop` |
 | `error` | ⬜ | ⬜ | ⬜ `onError` | `getError` | — |
