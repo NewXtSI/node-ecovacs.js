@@ -297,6 +297,20 @@ export class Api2Factory {
         });
       }
 
+      // Temporary diagnostics for map payloads. getAR/onAR can be multipacket,
+      // so raw payload visibility helps validate chunk headers and ordering.
+      if (topicName === "getAR" || topicName === "onAR") {
+        let rawPayload;
+        try { rawPayload = JSON.parse(payloadString); } catch { rawPayload = null; }
+        device.emit("_rawMapArPayload", {
+          fullTopic,
+          topicName,
+          direction: fullTopic.includes("/q/") ? "request" : "response",
+          rawPayload,
+          rawString: payloadString
+        });
+      }
+
       // Skip p2p "query" direction (/q/) only for getter commands — those are
       // echoes of our own outgoing requests and carry no device response data.
       // Set commands and others on /q/ may carry meaningful payload.

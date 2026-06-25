@@ -13,6 +13,10 @@ const LOG_AREASET_PAYLOADS = !["0", "false", "no", "off"].includes(
   String(process.env.API2_LOG_AREASET_PAYLOADS || "1").trim().toLowerCase()
 );
 
+const LOG_MAPAR_PAYLOADS = !["0", "false", "no", "off"].includes(
+  String(process.env.API2_LOG_MAPAR_PAYLOADS || "1").trim().toLowerCase()
+);
+
 const LISTEN_SECONDS = (() => {
   const parsed = Number(process.env.API2_LISTEN_SECONDS);
   if (!Number.isFinite(parsed)) return 30;
@@ -201,6 +205,14 @@ async function main() {
       });
     }
 
+    if (LOG_MAPAR_PAYLOADS) {
+      device.on("_rawMapArPayload", ({ topicName, direction, fullTopic, rawPayload }) => {
+        console.log(`[${device.name}] MAPAR RAW [${direction}] ${topicName}`);
+        console.log(`  topic: ${fullTopic}`);
+        console.log(`  payload: ${JSON.stringify(rawPayload?.body ?? rawPayload, null, 2)}`);
+      });
+    }
+
     device.on("chargeState", (data) => {
       console.log(`[${device.name}] chargeState:`, data);
     });
@@ -288,6 +300,20 @@ async function main() {
       console.log(`  nc (${data?.nc?.length ?? 0} no-go zones):`, data?.nc);
     });
 
+    device.on("mapAr", (data) => {
+      const decoded = data?.decoded;
+      const decodedKind = Array.isArray(decoded) ? "array" : typeof decoded;
+      const decodedCount = Array.isArray(decoded) ? decoded.length : null;
+      console.log(`[${device.name}] mapAr:`, {
+        mapSetType: data?.mapSetType ?? null,
+        serial: data?.serial ?? null,
+        infoSize: data?.infoSize ?? null,
+        decodedKind,
+        decodedCount
+      });
+      console.log(`[${device.name}] mapAr decoded:`, decoded);
+    });
+
     // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());
@@ -321,6 +347,7 @@ async function main() {
     console.log("getAreas() =", device.getAreas());
     console.log("getVirtualWalls() =", device.getVirtualWalls());
     console.log("getNoCrossZones() =", device.getNoCrossZones());
+    console.log("getMapAr() =", device.getMapAr());
 
     if (RUN_SETTER_TESTS) {
       // Wait 5s after script start before setter test.

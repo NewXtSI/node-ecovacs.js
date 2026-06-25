@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { decodeAreaSetPayload } from "./areaSetDecoder.js";
+import { decodeBinaryTopicBase64 } from "./binaryTopicDecoder.js";
 
 // Internal sentinel used to detect "no previous value yet" vs. an actual null state.
 const UNSET = Symbol("UNSET");
@@ -50,12 +51,16 @@ export class Api2Device extends EventEmitter {
       customCutMode: UNSET,   // {...}
       borderSwitch: UNSET,    // {...}
       areaParameters: UNSET,  // [{ areaId, cutMode, mowHeightLevel, obstacleHeight }, ...]
-      areaSet: UNSET           // { ar: [...], vw: [...], nc: [] }  — lazy, all 3 types
+      areaSet: UNSET,          // { ar: [...], vw: [...], nc: [] }  — lazy, all 3 types
+      mapAr: UNSET             // { decoded, infoSize, serial, ...meta } from getAR/onAR multipackets
     };
 
     // Tracks which commands have been requested but not yet answered,
     // so lazy-load does not flood the device with repeated requests.
     this._pendingRequests = new Set();
+
+    // Per-topic chunk buffers for multipacket binary topics (e.g. getAR/onAR).
+    this._binaryTopicBuffers = new Map();
 
     // Set by Api2Factory.connectDevice() to forward explicit write commands.
     this._sendCommand = null;
@@ -290,6 +295,11 @@ export class Api2Device extends EventEmitter {
   /** Convenience: returns only the no-go-zone entries. */
   getNoCrossZones() {
     return this.getAreaSet()?.nc ?? null;
+  }
+
+  /** Returns decoded map payload from getAR/onAR or null; auto-polls via getAR if not yet received. */
+  getMapAr() {
+    return this._getOrRequest("mapAr");
   }
 
   // ─── Write commands (setters) ─────────────────────────────────────────────
@@ -580,6 +590,24 @@ export class Api2Device extends EventEmitter {
         }
         break;
       }
+      case "getAR":
+      case "onAR": {
+        if (this._isBinaryTopicChunk(data)) {
+          this._ingestBinaryTopicChunk(topicName, data, "mapAr");
+        } else if (data && typeof data === "object") {
+          this._updateState("mapAr", {
+            topic: topicName,
+            serial: data.serial ?? null,
+            infoSize: data.infoSize ?? null,
+            batid: data.batid ?? null,
+            mid: data.mid ?? null,
+            aid: data.aid ?? null,
+            mapSetType: data.mapSetType ?? data.type ?? null,
+            decoded: data
+          });
+        }
+        break;
+      }
       case "getAreaParameter":
       case "onAreaParameter": {
         // getAreaParameter returns { areaParameters: [...] }
@@ -685,10 +713,136 @@ export class Api2Device extends EventEmitter {
       goatPosition: "getPos",
       chargePosition: "getPos",
       rtkPosition: "getPos",
-      areaParameters: "getAreaParameter"
+      areaParameters: "getAreaParameter",
+      mapAr: "getAR"
       // areaSet is handled by _requestAllAreaSetTypes() — not routed via _commandForState
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+  }
+
+  _isBinaryTopicChunk(data) {
+    return Boolean(
+      data &&
+      typeof data === "object" &&
+      data.serial !== undefined &&
+      data.index !== undefined &&
+      data.infoSize !== undefined &&
+      typeof data.info === "string"
+    );
+  }
+
+  _ingestBinaryTopicChunk(topicName, chunkData, targetStateKey) {
+    this._pruneBinaryTopicBuffers();
+
+    const bufferKey = this._binaryTopicBufferKey(topicName, chunkData);
+    const existing = this._binaryTopicBuffers.get(bufferKey) || {
+      expectedSize: 0,
+      expectedChunkCount: 0,
+      chunks: new Map(),
+      updatedAt: Date.now(),
+      meta: {
+        topic: topicName,
+        batid: chunkData?.batid ?? null,
+        mid: chunkData?.mid ?? null,
+        aid: chunkData?.aid ?? null,
+        mapSetType: chunkData?.mapSetType ?? chunkData?.type ?? null
+      }
+    };
+
+    existing.expectedSize = Number(chunkData.infoSize) || 0;
+    existing.expectedChunkCount = Number(chunkData.serial) || 0;
+    existing.updatedAt = Date.now();
+
+    const chunkIndex = Number(chunkData.index);
+    if (Number.isFinite(chunkIndex) && chunkIndex >= 0) {
+      existing.chunks.set(chunkIndex, String(chunkData.info));
+    }
+
+    this._binaryTopicBuffers.set(bufferKey, existing);
+
+    const assembledBase64 = this._assembleBinaryTopicBuffer(existing);
+    if (assembledBase64 === null) return;
+
+    this._binaryTopicBuffers.delete(bufferKey);
+
+    try {
+      const decoded = decodeBinaryTopicBase64(assembledBase64, existing.expectedSize);
+      this._updateState(targetStateKey, {
+        ...existing.meta,
+        serial: existing.expectedChunkCount,
+        infoSize: existing.expectedSize,
+        decoded
+      });
+    } catch (error) {
+      this.emit("unknownTopic", {
+        topicName,
+        data: chunkData,
+        error: error?.message || String(error)
+      });
+    }
+  }
+
+  _binaryTopicBufferKey(topicName, chunkData) {
+    return [
+      topicName,
+      chunkData?.batid || "",
+      chunkData?.mid || "",
+      chunkData?.aid || "",
+      chunkData?.mapSetType || chunkData?.type || ""
+    ].join(":");
+  }
+
+  _assembleBinaryTopicBuffer(binaryTopicBuffer) {
+    if (!Number.isFinite(binaryTopicBuffer.expectedSize) || binaryTopicBuffer.expectedSize <= 0) {
+      return null;
+    }
+
+    const orderedChunks = [...binaryTopicBuffer.chunks.entries()].sort((left, right) => left[0] - right[0]);
+    if (orderedChunks.length === 0 || orderedChunks[0][0] !== 0) {
+      return null;
+    }
+
+    if (
+      Number.isFinite(binaryTopicBuffer.expectedChunkCount) &&
+      binaryTopicBuffer.expectedChunkCount > 0 &&
+      orderedChunks.length >= binaryTopicBuffer.expectedChunkCount &&
+      orderedChunks[binaryTopicBuffer.expectedChunkCount - 1]?.[0] === binaryTopicBuffer.expectedChunkCount - 1
+    ) {
+      return orderedChunks
+        .slice(0, binaryTopicBuffer.expectedChunkCount)
+        .map(([, chunkValue]) => chunkValue)
+        .join("");
+    }
+
+    let assembledBase64 = "";
+    for (let expectedIndex = 0; expectedIndex < orderedChunks.length; expectedIndex += 1) {
+      const [chunkIndex, chunkValue] = orderedChunks[expectedIndex];
+      if (chunkIndex !== expectedIndex) {
+        return null;
+      }
+
+      assembledBase64 += chunkValue;
+
+      const decodedByteLength = Buffer.from(assembledBase64, "base64").length;
+      if (assembledBase64.length >= binaryTopicBuffer.expectedSize) {
+        return assembledBase64.slice(0, binaryTopicBuffer.expectedSize);
+      }
+
+      if (decodedByteLength >= binaryTopicBuffer.expectedSize) {
+        return assembledBase64;
+      }
+    }
+
+    return null;
+  }
+
+  _pruneBinaryTopicBuffers() {
+    const expireBefore = Date.now() - (10 * 60 * 1000);
+    for (const [key, buffer] of this._binaryTopicBuffers.entries()) {
+      if ((buffer?.updatedAt || 0) < expireBefore) {
+        this._binaryTopicBuffers.delete(key);
+      }
+    }
   }
 
   _normalizeAreaParameters(data) {
