@@ -563,6 +563,13 @@ export class Api2Device extends EventEmitter {
                 : { ...(this._state.areaSet || { ar: [], vw: [], nc: [] }) };
               current[decoded.type] = decoded.items;
               this._updateState("areaSet", current);
+
+              // Enrich already-known area parameters with names from areaSet.ar.
+              if (this._state.areaParameters !== UNSET && Array.isArray(this._state.areaParameters)) {
+                const mergedAreas = this._mergeAreaParametersWithAreaSet(this._state.areaParameters, current);
+                this._updateState("areaParameters", mergedAreas);
+              }
+
               // Clear the per-type pending key so re-polling works correctly.
               this._pendingRequests.delete(`getAreaSet:${decoded.type}`);
             }
@@ -698,7 +705,29 @@ export class Api2Device extends EventEmitter {
       .filter((area) => area.areaId !== null && Number.isFinite(area.areaId))
       .sort((a, b) => a.areaId - b.areaId);
 
-    return normalized.length > 0 ? normalized : null;
+    if (normalized.length === 0) return null;
+    return this._mergeAreaParametersWithAreaSet(normalized, this._state.areaSet === UNSET ? null : this._state.areaSet);
+  }
+
+  _mergeAreaParametersWithAreaSet(areaParameters, areaSet) {
+    if (!Array.isArray(areaParameters)) return areaParameters;
+    if (!areaSet || !Array.isArray(areaSet.ar)) return areaParameters;
+
+    const areaNames = new Map();
+    for (const areaEntry of areaSet.ar) {
+      const areaId = Number(areaEntry?.areaId);
+      const name = typeof areaEntry?.name === "string" ? areaEntry.name : "";
+      if (!Number.isFinite(areaId) || name.length === 0 || areaNames.has(areaId)) continue;
+      areaNames.set(areaId, name);
+    }
+
+    return areaParameters.map((area) => {
+      const mergedName = areaNames.get(area.areaId) ?? area.name ?? "";
+      return {
+        ...area,
+        name: mergedName
+      };
+    });
   }
 
   _normalizeMowInfo(data) {
