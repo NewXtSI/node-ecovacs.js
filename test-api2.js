@@ -222,13 +222,7 @@ async function main() {
       });
     }
 
-    if (LOG_MAPINFO_PAYLOADS) {
-      device.on("_rawMapInfoPayload", ({ topicName, direction, fullTopic, rawPayload }) => {
-        console.log(`[${device.name}] MAPINFO RAW [${direction}] ${topicName}`);
-        console.log(`  topic: ${fullTopic}`);
-        console.log(`  payload: ${JSON.stringify(rawPayload?.body ?? rawPayload, null, 2)}`);
-      });
-    }
+
 
     device.on("chargeState", (data) => {
       console.log(`[${device.name}] chargeState:`, data);
@@ -332,11 +326,35 @@ async function main() {
     });
 
     device.on("arInfo", (data) => {
-      console.log(`[${device.name}] arInfo:`, data);
+      const decoded = data?.decoded;
+      if (Array.isArray(decoded)) {
+        console.log(`[${device.name}] arInfo: ${decoded.length} area(s)`);
+        decoded.forEach((area, idx) => {
+          const areaStr = Array.isArray(area) ? area.map(s => String(s).substring(0, 30)).join(" | ") : String(area).substring(0, 30);
+          console.log(`  [${idx}] ${areaStr}...`);
+        });
+      } else {
+        console.log(`[${device.name}] arInfo:`, decoded ?? data);
+      }
     });
 
     device.on("mapInfo", (data) => {
-      console.log(`[${device.name}] mapInfo:`, data);
+      const decoded = data?.decoded;
+      if (Array.isArray(decoded)) {
+        console.log(`[${device.name}] mapInfo: ${decoded.length} room(s)/zone(s)`);
+        decoded.forEach((room, idx) => {
+          if (Array.isArray(room)) {
+            const roomId = room[0];
+            const roomName = room[1];
+            const roomCoords = String(room[2] ?? "").substring(0, 80);
+            console.log(`  [${idx}] id=${roomId}, name=${roomName}, coords=${roomCoords}...`);
+          } else {
+            console.log(`  [${idx}] ${String(room).substring(0, 80)}...`);
+          }
+        });
+      } else {
+        console.log(`[${device.name}] mapInfo:`, decoded ?? data);
+      }
     });
 
     device.on("unknownTopic", ({ topicName, data, error }) => {
