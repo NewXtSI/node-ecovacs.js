@@ -7,3 +7,5 @@ coverage/
 mqtt_traffic.log
 clean_log.txt
 out.txt
+map_visualization_*.svg
+test_map_visualization.svg

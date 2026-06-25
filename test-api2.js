@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { Api2Factory } from "./src/api2/index.js";
+import { writeFile } from "node:fs/promises";
+import { generateMapSvg, getCoordinateSets } from "./src/api2/mapVisualizerSvg.js";
 
 const RUN_SETTER_TESTS = ["1", "true", "yes", "on"].includes(
   String(process.env.API2_RUN_SETTER_TESTS || "").trim().toLowerCase()
@@ -27,10 +29,16 @@ const LISTEN_SECONDS = (() => {
   return Math.max(0, parsed);
 })();
 
+const REQUEST_ARINFO = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_REQUEST_ARINFO || process.env.API2_REQUEST_MAPINFO || "1").trim().toLowerCase()
+);
 
 const REQUEST_MAPINFO = ["1", "true", "yes", "on"].includes(
   String(process.env.API2_REQUEST_MAPINFO || "1").trim().toLowerCase()
 );
+
+const MAPINFO_REQUEST_TYPE = String(process.env.API2_REQUEST_MAPINFO_TYPE || "0").trim() || "0";
+const ARINFO_REQUEST_TYPE = String(process.env.API2_REQUEST_ARINFO_TYPE || "0").trim() || "0";
 
 async function loadCredentials() {
   const raw = await readFile("./credentials.json", "utf8");
@@ -143,9 +151,9 @@ async function main() {
     deviceId: credentials.deviceId,
     overrideMqttUrl: credentials.overrideMqttUrl,
     debugFlags: {
-      connection: false,
-      auth: false,
-      devices: false
+      connection: true,
+      auth: true,
+      devices: true
     }
   });
 
@@ -155,6 +163,27 @@ async function main() {
   console.log(`Found ${goatDevices.length} GOATBOT device(s):`);
 
   for (const device of goatDevices) {
+    let latestArInfo = null;
+    let latestMapInfo = null;
+
+    const writeMapVisualization = (mapInfoEntries = latestMapInfo, arInfoEntries = latestArInfo) => {
+      if (!Array.isArray(mapInfoEntries) || mapInfoEntries.length === 0) {
+        return;
+      }
+
+      (async () => {
+        try {
+          const svg = generateMapSvg(mapInfoEntries, { arInfo: arInfoEntries });
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+          const filename = `map_visualization_${timestamp}.svg`;
+          await writeFile(filename, svg, "utf8");
+          console.log(`[${device.name}] SVG saved: ${filename}`);
+        } catch (err) {
+          console.error(`[${device.name}] SVG generation failed:`, err.message);
+        }
+      })();
+    };
+
     console.log({
       id: device.id,
       name: device.name,
@@ -328,11 +357,21 @@ async function main() {
     device.on("arInfo", (data) => {
       const decoded = data?.decoded;
       if (Array.isArray(decoded)) {
+        latestArInfo = decoded;
         console.log(`[${device.name}] arInfo: ${decoded.length} area(s)`);
         decoded.forEach((area, idx) => {
-          const areaStr = Array.isArray(area) ? area.map(s => String(s).substring(0, 30)).join(" | ") : String(area).substring(0, 30);
-          console.log(`  [${idx}] ${areaStr}...`);
+          if (Array.isArray(area)) {
+            const coordinateSets = getCoordinateSets(area, `area-${idx}`);
+            const areaId = String(area[0] ?? "?");
+            const layer = String(area[1] ?? "?");
+            const ids = [...new Set(coordinateSets.map(set => set.coordinateType))].join(",");
+            const areaStr = area.map(s => String(s).substring(0, 30)).join(" | ");
+            console.log(`  [${idx}] areaId=${areaId}, layer=${layer}, polygons=${coordinateSets.length}, ids=[${ids}], ${areaStr}...`);
+          } else {
+            console.log(`  [${idx}] ${String(area).substring(0, 30)}...`);
+          }
         });
+        writeMapVisualization(latestMapInfo, latestArInfo);
       } else {
         console.log(`[${device.name}] arInfo:`, decoded ?? data);
       }
@@ -341,17 +380,22 @@ async function main() {
     device.on("mapInfo", (data) => {
       const decoded = data?.decoded;
       if (Array.isArray(decoded)) {
+        latestMapInfo = decoded;
         console.log(`[${device.name}] mapInfo: ${decoded.length} room(s)/zone(s)`);
         decoded.forEach((room, idx) => {
           if (Array.isArray(room)) {
             const roomId = room[0];
-            const roomName = room[1];
-            const roomCoords = String(room[2] ?? "").substring(0, 80);
-            console.log(`  [${idx}] id=${roomId}, name=${roomName}, coords=${roomCoords}...`);
+            const coordinateSets = getCoordinateSets(room, `room-${idx}`);
+            const fieldPreview = room
+              .slice(1)
+              .map((value, fieldIdx) => `f${fieldIdx + 1}=${String(value).substring(0, 40)}`)
+              .join(" | ");
+            console.log(`  [${idx}] id=${roomId}, polygons=${coordinateSets.length}, ${fieldPreview}...`);
           } else {
             console.log(`  [${idx}] ${String(room).substring(0, 80)}...`);
           }
         });
+        writeMapVisualization(latestMapInfo, latestArInfo);
       } else {
         console.log(`[${device.name}] mapInfo:`, decoded ?? data);
       }
@@ -401,13 +445,23 @@ async function main() {
     console.log("getMapAr() =", device.getMapAr());
     console.log("getArInfo() =", device.getArInfo());
     console.log("getMapInfo() =", device.getMapInfo());
-    if (REQUEST_MAPINFO) {
-      console.log("requestArInfo(type=0) ...");
-      await device.requestArInfo("0");
-      console.log("requestMapInfo(type=0) ...");
-      await device.requestMapInfo("0");
+    console.log("Map request config =", {
+      requestArInfo: REQUEST_ARINFO,
+      requestMapInfo: REQUEST_MAPINFO,
+      arInfoType: ARINFO_REQUEST_TYPE,
+      mapInfoType: MAPINFO_REQUEST_TYPE
+    });
+    if (REQUEST_ARINFO) {
+      console.log(`requestArInfo(type=${ARINFO_REQUEST_TYPE}) ...`);
+      await device.requestArInfo(ARINFO_REQUEST_TYPE);
     } else {
-      console.log("MapInfo requests skipped (set API2_REQUEST_MAPINFO=1 to send getArI/getMI)." );
+      console.log("ArInfo request skipped (set API2_REQUEST_ARINFO=1 or API2_REQUEST_MAPINFO=1).");
+    }
+    if (REQUEST_MAPINFO) {
+      console.log(`requestMapInfo(type=${MAPINFO_REQUEST_TYPE}) ...`);
+      await device.requestMapInfo(MAPINFO_REQUEST_TYPE);
+    } else {
+      console.log("MapInfo request skipped (set API2_REQUEST_MAPINFO=1 to send getMI).");
     }
 
     if (RUN_SETTER_TESTS) {
