@@ -110,6 +110,20 @@ function parseArInfoEntries(arInfoEntries = []) {
     .filter(Boolean);
 }
 
+function getArColorForLayerAndId(layerId, polygonId) {
+  const normalizedLayer = String(layerId ?? "");
+
+  if (normalizedLayer === "2") {
+    return "#ff3b30";
+  }
+
+  if (normalizedLayer === "3") {
+    return "#1f6f3f";
+  }
+
+  return "#ffd400";
+}
+
 function buildShapes(mapInfoEntries, arInfoEntries = []) {
   const mapShapes = normalizeLayerEntries(mapInfoEntries, "room", getColorForId, 0.35, 1, 24);
   const resolvedMapShapes = mapShapes.map(shape => ({
@@ -129,7 +143,7 @@ function buildShapes(mapInfoEntries, arInfoEntries = []) {
       sourceIndex: polygon.sourceIndex,
       setIndex: polygonIndex,
       points: polygon.points,
-      color: "#ffd400",
+      color: getArColorForLayerAndId(entry.layerId, polygon.polygonId),
       fillOpacity: 0.5,
       strokeOpacity: 0.95,
       strokeWidth: 18,
@@ -251,4 +265,4 @@ function generateMapSvg(rooms, options = {}) {
   return svg;
 }
 
-export { parseCoordinates, getCoordinateSets, transformPoint, getColorForId, calculateBounds, generateMapSvg, buildShapes, parseArInfoEntries };
+export { parseCoordinates, getCoordinateSets, transformPoint, getColorForId, calculateBounds, generateMapSvg, buildShapes, parseArInfoEntries, getArColorForLayerAndId };

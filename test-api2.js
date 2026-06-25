@@ -184,7 +184,7 @@ async function main() {
       (async () => {
         try {
           const svg = generateMapSvg(mapInfoEntries, { arInfo: arInfoEntries });
-          const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
           const filename = `map_visualization_${timestamp}.svg`;
           await writeFile(filename, svg, "utf8");
           console.log(`[${device.name}] SVG saved: ${filename}`);
