@@ -52,7 +52,9 @@ export class Api2Device extends EventEmitter {
       borderSwitch: UNSET,    // {...}
       areaParameters: UNSET,  // [{ areaId, cutMode, mowHeightLevel, obstacleHeight }, ...]
       areaSet: UNSET,          // { ar: [...], vw: [...], nc: [] }  — lazy, all 3 types
-      mapAr: UNSET             // { decoded, infoSize, serial, ...meta } from getAR/onAR multipackets
+      mapAr: UNSET,            // { decoded, infoSize, serial, ...meta } from getAR/onAR multipackets
+      arInfo: UNSET,           // raw payload from getArI/onArI (area information)
+      mapInfo: UNSET           // raw payload from getMI/onMI (map information)
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -76,7 +78,7 @@ export class Api2Device extends EventEmitter {
    */
   on(event, listener) {
     super.on(event, listener);
-    if (this._isStateEvent(event) && this._state[event] === UNSET) {
+    if (this._isStateEvent(event) && this._state[event] === UNSET && !this._isPassiveStateKey(event)) {
       if (event === "areaSet") {
         this._requestAllAreaSetTypes();
       } else {
@@ -88,7 +90,7 @@ export class Api2Device extends EventEmitter {
 
   once(event, listener) {
     super.once(event, listener);
-    if (this._isStateEvent(event) && this._state[event] === UNSET) {
+    if (this._isStateEvent(event) && this._state[event] === UNSET && !this._isPassiveStateKey(event)) {
       if (event === "areaSet") {
         this._requestAllAreaSetTypes();
       } else {
@@ -101,6 +103,10 @@ export class Api2Device extends EventEmitter {
   /** Returns true when the event name matches a tracked state key. */
   _isStateEvent(event) {
     return Object.prototype.hasOwnProperty.call(this._state, event);
+  }
+
+  _isPassiveStateKey(key) {
+    return key === "mapAr" || key === "arInfo" || key === "mapInfo";
   }
 
   // ─── Device identity getters ──────────────────────────────────────────────
@@ -300,6 +306,32 @@ export class Api2Device extends EventEmitter {
   /** Returns decoded map payload from onAR/getAR or null; passive (no automatic poll command). */
   getMapAr() {
     return this._state.mapAr === UNSET ? null : this._state.mapAr;
+  }
+
+  /** Returns cached area information payload or null; no automatic poll. */
+  getArInfo() {
+    return this._state.arInfo === UNSET ? null : this._state.arInfo;
+  }
+
+  /** Returns cached map information payload or null; no automatic poll. */
+  getMapInfo() {
+    return this._state.mapInfo === UNSET ? null : this._state.mapInfo;
+  }
+
+  /** Requests getArI with explicit type/mid/aid and returns command response. */
+  async requestArInfo(typeOrData = "ar", { mid = "1", aid = "0" } = {}) {
+    const data = (typeOrData && typeof typeOrData === "object" && !Array.isArray(typeOrData))
+      ? typeOrData
+      : { mid, aid, type: typeOrData };
+    return this.sendCommand({ name: "getArI", data });
+  }
+
+  /** Requests getMI with explicit type/mid/aid and returns command response. */
+  async requestMapInfo(typeOrData = "mi", { mid = "1", aid = "0" } = {}) {
+    const data = (typeOrData && typeof typeOrData === "object" && !Array.isArray(typeOrData))
+      ? typeOrData
+      : { mid, aid, type: typeOrData };
+    return this.sendCommand({ name: "getMI", data });
   }
 
   // ─── Write commands (setters) ─────────────────────────────────────────────
@@ -608,6 +640,14 @@ export class Api2Device extends EventEmitter {
         }
         break;
       }
+      case "getArI":
+      case "onArI":
+        this._updateState("arInfo", data);
+        break;
+      case "getMI":
+      case "onMI":
+        this._updateState("mapInfo", data);
+        break;
       case "getAreaParameter":
       case "onAreaParameter": {
         // getAreaParameter returns { areaParameters: [...] }

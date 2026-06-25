@@ -209,6 +209,8 @@ Legende:
 | `areaSet` | ✅ `areaSet` | ✅ `getAreaSet()` / `getAreas()` / `getVirtualWalls()` / `getNoCrossZones()` | ✅ `onAreaSet` | `getAreaSet` ⁴ | — |
 | `areaParameters` | ✅ `areaParameters` | ✅ `getAreaParameters()` | ✅ `onFwBuryPoint-bd_setting` | `getAreaParameter` | — |
 | `mapAr` | ✅ `mapAr` | ✅ `getMapAr()` | ✅ `onAR` | — ⁵ | — |
+| `arInfo` | ✅ `arInfo` | ✅ `getArInfo()` | ✅ `onArI` | — ⁶ | ✅ `requestArInfo(typeOrData, { mid, aid })` |
+| `mapInfo` | ✅ `mapInfo` | ✅ `getMapInfo()` | ✅ `onMI` | — ⁶ | ✅ `requestMapInfo(typeOrData, { mid, aid })` |
 | `geolocation` | ✅ `geolocation` | ✅ `getGeolocation()` | — | `getGeolocation` | — |
 | `cutEfficiency` | ✅ `cutEfficiency` | ✅ `getCutEfficiency()` | — | `getCutEfficiency` ² | ⬜ |
 | `obstacleHeight` | ✅ `obstacleHeight` | ✅ `getObstacleHeight()` | — | `getObstacleHeight` ² | ✅ `setObstacleHeight` |
@@ -235,6 +237,8 @@ Legende:
 > ⁴ `getAreaSet` feuert automatisch 3 Commands (type `ar`, `vw`, `nc`). Der State `areaSet` wird nach jeder Response inkrementell befüllt. Subsets werden LZMA-dekodiert.
 
 > ⁵ `onAR`-Pakete (und ggf. `getAR`-Replies, falls vorhanden) werden als Multipacket (`serial/index/infoSize/info`) zusammengebaut und nach vollständigem Empfang als `mapAr.decoded` bereitgestellt (LZMA + Legacy-Header-Fallback). Es wird aktuell kein automatischer `getAR`-Poll gesendet.
+
+> ⁶ `arInfo`/`mapInfo` sind passiv (kein Auto-Poll), da je nach Modell unterschiedliche Request-Parameter nötig sind. Für aktive Abfragen stehen `requestArInfo(...)` und `requestMapInfo(...)` bereit. Beide akzeptieren entweder einen `type`-String oder ein vollständiges `data`-Objekt (z. B. `{ mid, aid, type }`, `{ mid, aid, mapSetType }`).
 
 ---
 

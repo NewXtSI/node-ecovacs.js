@@ -311,6 +311,19 @@ export class Api2Factory {
         });
       }
 
+      // Diagnostics for map/area information topics (ArI/MI).
+      if (topicName === "getArI" || topicName === "onArI" || topicName === "getMI" || topicName === "onMI") {
+        let rawPayload;
+        try { rawPayload = JSON.parse(payloadString); } catch { rawPayload = null; }
+        device.emit("_rawMapInfoPayload", {
+          fullTopic,
+          topicName,
+          direction: fullTopic.includes("/q/") ? "request" : "response",
+          rawPayload,
+          rawString: payloadString
+        });
+      }
+
       // Skip p2p "query" direction (/q/) only for getter commands — those are
       // echoes of our own outgoing requests and carry no device response data.
       // Set commands and others on /q/ may carry meaningful payload.

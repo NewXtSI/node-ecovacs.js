@@ -17,11 +17,33 @@ const LOG_MAPAR_PAYLOADS = !["0", "false", "no", "off"].includes(
   String(process.env.API2_LOG_MAPAR_PAYLOADS || "1").trim().toLowerCase()
 );
 
+const LOG_MAPINFO_PAYLOADS = !["0", "false", "no", "off"].includes(
+  String(process.env.API2_LOG_MAPINFO_PAYLOADS || "1").trim().toLowerCase()
+);
+
 const LISTEN_SECONDS = (() => {
   const parsed = Number(process.env.API2_LISTEN_SECONDS);
   if (!Number.isFinite(parsed)) return 30;
   return Math.max(0, parsed);
 })();
+
+const ARI_TYPE = String(process.env.API2_ARI_TYPE || "ar").trim() || "ar";
+const MI_TYPE = String(process.env.API2_MI_TYPE || "mi").trim() || "mi";
+const REQUEST_MAPINFO = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_REQUEST_MAPINFO || "0").trim().toLowerCase()
+);
+
+function parseJsonOrNull(value) {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+const ARI_REQUEST_PAYLOAD = parseJsonOrNull(process.env.API2_ARI_REQUEST);
+const MI_REQUEST_PAYLOAD = parseJsonOrNull(process.env.API2_MI_REQUEST);
 
 async function loadCredentials() {
   const raw = await readFile("./credentials.json", "utf8");
@@ -213,6 +235,14 @@ async function main() {
       });
     }
 
+    if (LOG_MAPINFO_PAYLOADS) {
+      device.on("_rawMapInfoPayload", ({ topicName, direction, fullTopic, rawPayload }) => {
+        console.log(`[${device.name}] MAPINFO RAW [${direction}] ${topicName}`);
+        console.log(`  topic: ${fullTopic}`);
+        console.log(`  payload: ${JSON.stringify(rawPayload?.body ?? rawPayload, null, 2)}`);
+      });
+    }
+
     device.on("chargeState", (data) => {
       console.log(`[${device.name}] chargeState:`, data);
     });
@@ -314,6 +344,14 @@ async function main() {
       console.log(`[${device.name}] mapAr decoded:`, decoded);
     });
 
+    device.on("arInfo", (data) => {
+      console.log(`[${device.name}] arInfo:`, data);
+    });
+
+    device.on("mapInfo", (data) => {
+      console.log(`[${device.name}] mapInfo:`, data);
+    });
+
     device.on("unknownTopic", ({ topicName, data, error }) => {
       console.log(`[${device.name}] unknownTopic: ${topicName}`);
       if (error) {
@@ -356,6 +394,18 @@ async function main() {
     console.log("getVirtualWalls() =", device.getVirtualWalls());
     console.log("getNoCrossZones() =", device.getNoCrossZones());
     console.log("getMapAr() =", device.getMapAr());
+    console.log("getArInfo() =", device.getArInfo());
+    console.log("getMapInfo() =", device.getMapInfo());
+    if (REQUEST_MAPINFO) {
+      const ariReq = ARI_REQUEST_PAYLOAD || { mid: "1", aid: "0", type: ARI_TYPE };
+      const miReq = MI_REQUEST_PAYLOAD || { mid: "1", aid: "0", type: MI_TYPE };
+      console.log("requestArInfo(payload) ...", ariReq);
+      await device.requestArInfo(ariReq);
+      console.log("requestMapInfo(payload) ...", miReq);
+      await device.requestMapInfo(miReq);
+    } else {
+      console.log("MapInfo requests skipped (set API2_REQUEST_MAPINFO=1 to send getArI/getMI)." );
+    }
 
     if (RUN_SETTER_TESTS) {
       // Wait 5s after script start before setter test.
