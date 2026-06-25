@@ -314,6 +314,14 @@ async function main() {
       console.log(`[${device.name}] mapAr decoded:`, decoded);
     });
 
+    device.on("unknownTopic", ({ topicName, data, error }) => {
+      console.log(`[${device.name}] unknownTopic: ${topicName}`);
+      if (error) {
+        console.log(`  error: ${error}`);
+      }
+      console.log(`  data: ${JSON.stringify(data, null, 2)}`);
+    });
+
     // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());

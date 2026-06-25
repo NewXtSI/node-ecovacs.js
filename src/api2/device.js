@@ -297,9 +297,9 @@ export class Api2Device extends EventEmitter {
     return this.getAreaSet()?.nc ?? null;
   }
 
-  /** Returns decoded map payload from getAR/onAR or null; auto-polls via getAR if not yet received. */
+  /** Returns decoded map payload from onAR/getAR or null; passive (no automatic poll command). */
   getMapAr() {
-    return this._getOrRequest("mapAr");
+    return this._state.mapAr === UNSET ? null : this._state.mapAr;
   }
 
   // ─── Write commands (setters) ─────────────────────────────────────────────
@@ -713,8 +713,7 @@ export class Api2Device extends EventEmitter {
       goatPosition: "getPos",
       chargePosition: "getPos",
       rtkPosition: "getPos",
-      areaParameters: "getAreaParameter",
-      mapAr: "getAR"
+      areaParameters: "getAreaParameter"
       // areaSet is handled by _requestAllAreaSetTypes() — not routed via _commandForState
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
