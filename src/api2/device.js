@@ -47,7 +47,8 @@ export class Api2Device extends EventEmitter {
       animProtect: UNSET,     // {...}
       timeZone: UNSET,        // {...}
       customCutMode: UNSET,   // {...}
-      borderSwitch: UNSET     // {...}
+      borderSwitch: UNSET,    // {...}
+      areaParameters: UNSET   // [{ areaId, cutMode, mowHeightLevel, obstacleHeight }, ...]
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -251,6 +252,11 @@ export class Api2Device extends EventEmitter {
 
   getBorderSwitch() {
     return this._getOrRequest("borderSwitch");
+  }
+
+  /** Returns current area parameters or null; auto-polls via getAreaParameter if not yet received. */
+  getAreaParameters() {
+    return this._getOrRequest("areaParameters");
   }
 
   // ─── Write commands (setters) ─────────────────────────────────────────────
@@ -512,6 +518,26 @@ export class Api2Device extends EventEmitter {
       case "getBorderSwitch":
         this._updateState("borderSwitch", data);
         break;
+      case "getAreaParameter":
+      case "onAreaParameter": {
+        // getAreaParameter returns { areaParameters: [...] }
+        // onAreaParameter may return the array directly or wrapped
+        const rawItems = Array.isArray(data)
+          ? data
+          : (Array.isArray(data?.areaParameters) ? data.areaParameters : null);
+        const normalizedAreas = rawItems ? this._normalizeAreaParameters(rawItems) : null;
+        if (normalizedAreas) this._updateState("areaParameters", normalizedAreas);
+        break;
+      }
+      case "onFwBuryPoint-bd_setting": {
+        // bd_setting fires spontaneously and contains AreaParameters array.
+        const rawAreas = data?.AreaParameters;
+        if (Array.isArray(rawAreas) && rawAreas.length > 0) {
+          const normalizedAreas = this._normalizeAreaParameters(rawAreas);
+          if (normalizedAreas) this._updateState("areaParameters", normalizedAreas);
+        }
+        break;
+      }
       case "getInfo":
         this._ingestGetInfoData(data);
         break;
@@ -582,9 +608,27 @@ export class Api2Device extends EventEmitter {
       mowInfo: "getCleanInfo",
       goatPosition: "getPos",
       chargePosition: "getPos",
-      rtkPosition: "getPos"
+      rtkPosition: "getPos",
+      areaParameters: "getAreaParameter"
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+  }
+
+  _normalizeAreaParameters(data) {
+    const items = Array.isArray(data) ? data : (data && typeof data === "object" ? [data] : []);
+    if (items.length === 0) return null;
+
+    const normalized = items
+      .map((item) => ({
+        areaId: item.areaID != null ? Number(item.areaID) : (item.areaId != null ? Number(item.areaId) : null),
+        cutMode: item.cutMode ?? null,
+        mowHeightLevel: item.mowHeightLevel ?? null,
+        obstacleHeight: item.obstacleHeight ?? null
+      }))
+      .filter((area) => area.areaId !== null && Number.isFinite(area.areaId))
+      .sort((a, b) => a.areaId - b.areaId);
+
+    return normalized.length > 0 ? normalized : null;
   }
 
   _normalizeMowInfo(data) {

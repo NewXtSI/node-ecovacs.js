@@ -183,6 +183,10 @@ async function main() {
       device.on("_rawPosPayload", ({ topicName, data }) => {
         console.log(`[${device.name}] POS RAW ${topicName}:`, data);
       });
+
+      device.on("_rawAreaParameterPayload", ({ topicName, data }) => {
+        console.log(`[${device.name}] AREA PARAM RAW ${topicName}:`, JSON.stringify(data, null, 2));
+      });
     }
 
     device.on("chargeState", (data) => {
@@ -261,6 +265,10 @@ async function main() {
       console.log(`[${device.name}] borderSwitch:`, data);
     });
 
+    device.on("areaParameters", (data) => {
+      console.log(`[${device.name}] areaParameters (${data?.length ?? 0} areas):`, data);
+    });
+
     // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());
@@ -289,6 +297,7 @@ async function main() {
     console.log("getTimeZone() =", device.getTimeZone());
     console.log("getCustomCutMode() =", device.getCustomCutMode());
     console.log("getBorderSwitch() =", device.getBorderSwitch());
+    console.log("getAreaParameters() =", device.getAreaParameters());
 
     if (RUN_SETTER_TESTS) {
       // Wait 5s after script start before setter test.

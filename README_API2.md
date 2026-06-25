@@ -207,7 +207,7 @@ Legende:
 | `netInfo` | ✅ `netInfo` | ✅ `getNetInfo()` | — | `getNetInfo` | — |
 | `protectState` | ✅ `protectState` | ✅ `getProtectState()` | ✅ `onProtectState` | `getProtectState` | — |
 | `areaSet` | ⬜ | ⬜ | ⬜ `onAreaSet` | `getAreaSet` | — |
-| `areaParameter` | ⬜ | ⬜ | ⬜ `onAreaParameter` | `getAreaParameter` | — |
+| `areaParameters` | ✅ `areaParameters` | ✅ `getAreaParameters()` | ✅ `onFwBuryPoint-bd_setting` | `getAreaParameter` | — |
 | `geolocation` | ✅ `geolocation` | ✅ `getGeolocation()` | — | `getGeolocation` | — |
 | `cutEfficiency` | ✅ `cutEfficiency` | ✅ `getCutEfficiency()` | — | `getCutEfficiency` ² | ⬜ |
 | `obstacleHeight` | ✅ `obstacleHeight` | ✅ `getObstacleHeight()` | — | `getObstacleHeight` ² | ✅ `setObstacleHeight` |

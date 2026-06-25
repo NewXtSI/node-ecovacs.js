@@ -308,6 +308,16 @@ export class Api2Factory {
         });
       }
 
+      // Temporary diagnostics: expose raw area parameter payloads to identify response format.
+      if (topicName === "getAreaParameter" || topicName === "onAreaParameter") {
+        device.emit("_rawAreaParameterPayload", {
+          fullTopic,
+          topicName,
+          data,
+          payload
+        });
+      }
+
       device._ingestTopicData(topicName, data);
     });
 
