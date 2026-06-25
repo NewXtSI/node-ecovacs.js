@@ -33,9 +33,19 @@ function decodeSubsetsBase64(base64String, expectedSize) {
   const buf = Buffer.from(String(base64String), "base64");
   try {
     return parseLzmaJsonBuffer(buf);
-  } catch {
-    if (!shouldUseLegacyHeader(buf, expectedSize)) throw new Error("LZMA decode failed");
-    return parseLzmaJsonBuffer(patchLegacyHeader(buf));
+  } catch (primaryError) {
+    // First try the historical 32-bit size header heuristic.
+    if (shouldUseLegacyHeader(buf, expectedSize)) {
+      return parseLzmaJsonBuffer(patchLegacyHeader(buf));
+    }
+
+    // Some AreaSet payloads still decode correctly after header patching even
+    // when infoSize does not match the old 32-bit header field.
+    try {
+      return parseLzmaJsonBuffer(patchLegacyHeader(buf));
+    } catch {
+      throw primaryError;
+    }
   }
 }
 
