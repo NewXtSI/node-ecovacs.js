@@ -285,7 +285,7 @@ export class Api2Factory {
 
       // Temporary diagnostics for AreaSet: emit raw event for BOTH request (/q/) and
       // response (/p/) directions before the filter discards query echoes.
-      if (topicName === "getAreaSet" || topicName === "onAreaSet") {
+      if (topicName === "getAreaSet" || topicName === "onAreaSet" || topicName === "setAreaSet") {
         let rawPayload;
         try { rawPayload = JSON.parse(payloadString); } catch { rawPayload = null; }
         device.emit("_rawAreaSetPayload", {
