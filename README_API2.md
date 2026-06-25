@@ -206,7 +206,7 @@ Legende:
 | `lifeSpan` | ✅ `lifeSpan` | ✅ `getLifeSpan()` | — | `getLifeSpan` ¹ | — |
 | `netInfo` | ✅ `netInfo` | ✅ `getNetInfo()` | — | `getNetInfo` | — |
 | `protectState` | ✅ `protectState` | ✅ `getProtectState()` | ✅ `onProtectState` | `getProtectState` | — |
-| `areaSet` | ⬜ | ⬜ | ⬜ `onAreaSet` | `getAreaSet` | — |
+| `areaSet` | ✅ `areaSet` | ✅ `getAreaSet()` / `getAreas()` / `getVirtualWalls()` / `getNoCrossZones()` | ✅ `onAreaSet` | `getAreaSet` ⁴ | — |
 | `areaParameters` | ✅ `areaParameters` | ✅ `getAreaParameters()` | ✅ `onFwBuryPoint-bd_setting` | `getAreaParameter` | — |
 | `geolocation` | ✅ `geolocation` | ✅ `getGeolocation()` | — | `getGeolocation` | — |
 | `cutEfficiency` | ✅ `cutEfficiency` | ✅ `getCutEfficiency()` | — | `getCutEfficiency` ² | ⬜ |
@@ -230,6 +230,8 @@ Legende:
 > ² Direkter Command + `getInfo`-Fallback-Mapping.
 
 > ³ `onPos`/`getPos` werden auf drei States aufgeteilt: `goatPosition`, `chargePosition`, `rtkPosition`.
+
+> ⁴ `getAreaSet` feuert automatisch 3 Commands (type `ar`, `vw`, `nc`). Der State `areaSet` wird nach jeder Response inkrementell befüllt. Subsets werden LZMA-dekodiert.
 
 ---
 

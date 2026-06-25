@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { decodeAreaSetPayload } from "./areaSetDecoder.js";
 
 // Internal sentinel used to detect "no previous value yet" vs. an actual null state.
 const UNSET = Symbol("UNSET");
@@ -48,7 +49,8 @@ export class Api2Device extends EventEmitter {
       timeZone: UNSET,        // {...}
       customCutMode: UNSET,   // {...}
       borderSwitch: UNSET,    // {...}
-      areaParameters: UNSET   // [{ areaId, cutMode, mowHeightLevel, obstacleHeight }, ...]
+      areaParameters: UNSET,  // [{ areaId, cutMode, mowHeightLevel, obstacleHeight }, ...]
+      areaSet: UNSET           // { ar: [...], vw: [...], nc: [] }  — lazy, all 3 types
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -70,7 +72,11 @@ export class Api2Device extends EventEmitter {
   on(event, listener) {
     super.on(event, listener);
     if (this._isStateEvent(event) && this._state[event] === UNSET) {
-      this._requestData(this._commandForState(event));
+      if (event === "areaSet") {
+        this._requestAllAreaSetTypes();
+      } else {
+        this._requestData(this._commandForState(event));
+      }
     }
     return this;
   }
@@ -78,7 +84,11 @@ export class Api2Device extends EventEmitter {
   once(event, listener) {
     super.once(event, listener);
     if (this._isStateEvent(event) && this._state[event] === UNSET) {
-      this._requestData(this._commandForState(event));
+      if (event === "areaSet") {
+        this._requestAllAreaSetTypes();
+      } else {
+        this._requestData(this._commandForState(event));
+      }
     }
     return this;
   }
@@ -257,6 +267,29 @@ export class Api2Device extends EventEmitter {
   /** Returns current area parameters or null; auto-polls via getAreaParameter if not yet received. */
   getAreaParameters() {
     return this._getOrRequest("areaParameters");
+  }
+
+  /** Returns full areaSet object { ar, vw, nc } or null; triggers all 3 getAreaSet commands. */
+  getAreaSet() {
+    if (this._state.areaSet === UNSET) {
+      this._requestAllAreaSetTypes();
+    }
+    return this._state.areaSet === UNSET ? null : this._state.areaSet;
+  }
+
+  /** Convenience: returns only the spotArea / mowing-area entries. */
+  getAreas() {
+    return this.getAreaSet()?.ar ?? null;
+  }
+
+  /** Convenience: returns only the virtual-wall entries. */
+  getVirtualWalls() {
+    return this.getAreaSet()?.vw ?? null;
+  }
+
+  /** Convenience: returns only the no-go-zone entries. */
+  getNoCrossZones() {
+    return this.getAreaSet()?.nc ?? null;
   }
 
   // ─── Write commands (setters) ─────────────────────────────────────────────
@@ -518,6 +551,28 @@ export class Api2Device extends EventEmitter {
       case "getBorderSwitch":
         this._updateState("borderSwitch", data);
         break;
+      case "getAreaSet":
+      case "onAreaSet": {
+        // Each response carries one type (ar/vw/nc); accumulate into a single state object.
+        if (data && data.type) {
+          try {
+            const decoded = decodeAreaSetPayload(data);
+            if (decoded) {
+              const current = this._state.areaSet === UNSET
+                ? { ar: [], vw: [], nc: [] }
+                : { ...(this._state.areaSet || { ar: [], vw: [], nc: [] }) };
+              current[decoded.type] = decoded.items;
+              this._updateState("areaSet", current);
+              // Clear the per-type pending key so re-polling works correctly.
+              this._pendingRequests.delete(`getAreaSet:${decoded.type}`);
+            }
+          } catch (err) {
+            // Decode failure: emit as unknownTopic so the consumer can still react.
+            this.emit("unknownTopic", { topicName, data, error: err.message });
+          }
+        }
+        break;
+      }
       case "getAreaParameter":
       case "onAreaParameter": {
         // getAreaParameter returns { areaParameters: [...] }
@@ -594,6 +649,20 @@ export class Api2Device extends EventEmitter {
   }
 
   /**
+   * Fires one getAreaSet command per type (ar, vw, nc), each deduplicated separately.
+   * Tracks pending requests per type so repeated calls do not re-send in-flight commands.
+   */
+  _requestAllAreaSetTypes() {
+    for (const type of ["ar", "vw", "nc"]) {
+      const pendingKey = `getAreaSet:${type}`;
+      if (!this._pendingRequests.has(pendingKey)) {
+        this._pendingRequests.add(pendingKey);
+        setImmediate(() => this.emit("_requestData", { name: "getAreaSet", data: { mid: "1", aid: "0", type } }));
+      }
+    }
+  }
+
+  /**
    * Maps a state key back to its primary poll command name.
    * Override entries where the command name does not follow the default
    * get<Key> convention.
@@ -610,6 +679,7 @@ export class Api2Device extends EventEmitter {
       chargePosition: "getPos",
       rtkPosition: "getPos",
       areaParameters: "getAreaParameter"
+      // areaSet is handled by _requestAllAreaSetTypes() — not routed via _commandForState
     };
     return map[key] ?? `get${key.charAt(0).toUpperCase()}${key.slice(1)}`;
   }

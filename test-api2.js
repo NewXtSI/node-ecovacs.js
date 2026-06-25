@@ -281,6 +281,13 @@ async function main() {
       console.log(`[${device.name}] areaParameters (${data?.length ?? 0} areas):`, data);
     });
 
+    device.on("areaSet", (data) => {
+      console.log(`[${device.name}] areaSet:`);
+      console.log(`  ar (${data?.ar?.length ?? 0} areas):`, data?.ar);
+      console.log(`  vw (${data?.vw?.length ?? 0} virtual walls):`, data?.vw);
+      console.log(`  nc (${data?.nc?.length ?? 0} no-go zones):`, data?.nc);
+    });
+
     // Explicitly call all getters.
     console.log("getStats() =", device.getStats());
     console.log("getLastTimeStats() =", device.getLastTimeStats());
@@ -310,6 +317,10 @@ async function main() {
     console.log("getCustomCutMode() =", device.getCustomCutMode());
     console.log("getBorderSwitch() =", device.getBorderSwitch());
     console.log("getAreaParameters() =", device.getAreaParameters());
+    console.log("getAreaSet() =", device.getAreaSet());
+    console.log("getAreas() =", device.getAreas());
+    console.log("getVirtualWalls() =", device.getVirtualWalls());
+    console.log("getNoCrossZones() =", device.getNoCrossZones());
 
     if (RUN_SETTER_TESTS) {
       // Wait 5s after script start before setter test.
