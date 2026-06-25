@@ -3,6 +3,8 @@ import { Api2Factory } from "./src/api2/index.js";
 import { writeFile } from "node:fs/promises";
 import { generateMapSvg, getCoordinateSets } from "./src/api2/mapVisualizerSvg.js";
 
+let runtimeFactory = null;
+
 const RUN_SETTER_TESTS = ["1", "true", "yes", "on"].includes(
   String(process.env.API2_RUN_SETTER_TESTS || "").trim().toLowerCase()
 );
@@ -156,10 +158,18 @@ async function main() {
       devices: true
     }
   });
+  runtimeFactory = factory;
 
   await factory.connect();
+  console.log("Factory status after connect =", factory.getConnectionStatus());
 
-  const goatDevices = await factory.getGoatDevices();
+  let goatDevices;
+  try {
+    goatDevices = await factory.getGoatDevices();
+  } catch (error) {
+    console.error("Factory status after getGoatDevices failure =", factory.getConnectionStatus());
+    throw error;
+  }
   console.log(`Found ${goatDevices.length} GOATBOT device(s):`);
 
   for (const device of goatDevices) {
@@ -593,9 +603,13 @@ async function main() {
   }
 
   await factory.disconnect();
+  runtimeFactory = null;
 }
 
 main().catch((error) => {
   console.error("API 2.0 test failed:", error.message);
+  if (runtimeFactory?.getConnectionStatus) {
+    console.error("Factory status at failure =", runtimeFactory.getConnectionStatus());
+  }
   process.exit(1);
 });

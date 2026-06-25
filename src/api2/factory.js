@@ -29,6 +29,34 @@ function parseBooleanFlag(value) {
   return Boolean(value);
 }
 
+function extractApiErrorDetails(error) {
+  const message = error?.message || String(error || "");
+  const match = message.match(/\((\d{3})\)\s+on\s+([^\s]+)/i);
+  if (!match) {
+    return {
+      code: null,
+      endpoint: null
+    };
+  }
+
+  return {
+    code: Number(match[1]),
+    endpoint: match[2]
+  };
+}
+
+function createInitialConnectionStatus() {
+  return {
+    phase: "idle",
+    connected: false,
+    authServer: "unknown",
+    devicesServer: "unknown",
+    mqtt: "unknown",
+    updatedAt: null,
+    lastError: null
+  };
+}
+
 export class Api2Factory {
   constructor(options = {}) {
     const debugFlags = {
@@ -62,10 +90,47 @@ export class Api2Factory {
     this.cloudClient = null;
     this.mqttClient = null;
     this.connected = false;
+    this._connectionStatus = createInitialConnectionStatus();
   }
 
   get isConnected() {
     return this.connected;
+  }
+
+  get status() {
+    return this.getConnectionStatus();
+  }
+
+  getConnectionStatus() {
+    return {
+      ...this._connectionStatus,
+      lastError: this._connectionStatus.lastError
+        ? { ...this._connectionStatus.lastError }
+        : null
+    };
+  }
+
+  _updateConnectionStatus(patch = {}) {
+    this._connectionStatus = {
+      ...this._connectionStatus,
+      ...patch,
+      connected: this.connected,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  _setConnectionError(stage, error) {
+    const details = extractApiErrorDetails(error);
+    this._updateConnectionStatus({
+      phase: "error",
+      lastError: {
+        stage,
+        message: error?.message || String(error),
+        code: details.code,
+        endpoint: details.endpoint,
+        at: new Date().toISOString()
+      }
+    });
   }
 
   setCredentials(userOrEmail, password, options = {}) {
@@ -162,6 +227,13 @@ export class Api2Factory {
     });
 
     try {
+      this._updateConnectionStatus({
+        phase: "connecting",
+        authServer: "pending",
+        devicesServer: "unknown",
+        mqtt: "unknown",
+        lastError: null
+      });
       this.logger.devices?.("Factory connect() started", {
         user: this.credentials.email,
         country: this.credentials.country,
@@ -169,9 +241,17 @@ export class Api2Factory {
       });
       await this.cloudClient.connect();
       this.connected = true;
+      this._updateConnectionStatus({
+        phase: "connected",
+        authServer: "ok",
+        lastError: null
+      });
       this.logger.devices?.("Factory connect() successful");
       return this;
     } catch (error) {
+      this.connected = false;
+      this._updateConnectionStatus({ authServer: "error" });
+      this._setConnectionError("connect", error);
       this.logger.devices?.("Factory connect() failed", {
         error: error?.message || String(error)
       });
@@ -185,6 +265,11 @@ export class Api2Factory {
     }
 
     try {
+      this._updateConnectionStatus({
+        phase: "fetching_devices",
+        devicesServer: "pending",
+        lastError: null
+      });
       const allDevices = await this.cloudClient.getDevices();
       this.logger.devicesRaw?.("Raw getDevices() payload", allDevices);
 
@@ -206,8 +291,16 @@ export class Api2Factory {
         totalGoatBot: goatDevicesCount
       });
 
+      this._updateConnectionStatus({
+        phase: "ready",
+        devicesServer: "ok",
+        lastError: null
+      });
+
       return devices;
     } catch (error) {
+      this._updateConnectionStatus({ devicesServer: "error" });
+      this._setConnectionError("getDevices", error);
       this.logger.devices?.("getDevices() failed", {
         error: error?.message || String(error)
       });
@@ -241,14 +334,22 @@ export class Api2Factory {
     if (!this.mqttClient) {
       const session = await this.cloudClient.getSessionCredentials();
       this.mqttClient = new GoatMqttClient({ logger: this.logger });
-      await this.mqttClient.connect({
-        deviceId: this.credentials.deviceId,
-        country: this.credentials.country,
-        continent: this.credentials.continent,
-        username: session.userId,
-        password: session.token,
-        overrideMqttUrl: this.credentials.overrideMqttUrl
-      });
+      try {
+        this._updateConnectionStatus({ mqtt: "pending", lastError: null });
+        await this.mqttClient.connect({
+          deviceId: this.credentials.deviceId,
+          country: this.credentials.country,
+          continent: this.credentials.continent,
+          username: session.userId,
+          password: session.token,
+          overrideMqttUrl: this.credentials.overrideMqttUrl
+        });
+        this._updateConnectionStatus({ mqtt: "ok", phase: "ready" });
+      } catch (error) {
+        this._updateConnectionStatus({ mqtt: "error" });
+        this._setConnectionError("connectDevice:mqtt", error);
+        throw error;
+      }
     }
 
     const commander = new DeviceCommander({
@@ -377,5 +478,10 @@ export class Api2Factory {
     }
     this.connected = false;
     this.cloudClient = null;
+    this._connectionStatus = {
+      ...createInitialConnectionStatus(),
+      phase: "disconnected",
+      updatedAt: new Date().toISOString()
+    };
   }
 }
