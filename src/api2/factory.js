@@ -283,6 +283,20 @@ export class Api2Factory {
       const topicName = fullTopic.split("/")[2] || null;
       if (!topicName) return;
 
+      // Temporary diagnostics for AreaSet: emit raw event for BOTH request (/q/) and
+      // response (/p/) directions before the filter discards query echoes.
+      if (topicName === "getAreaSet" || topicName === "onAreaSet") {
+        let rawPayload;
+        try { rawPayload = JSON.parse(payloadString); } catch { rawPayload = null; }
+        device.emit("_rawAreaSetPayload", {
+          fullTopic,
+          topicName,
+          direction: fullTopic.includes("/q/") ? "request" : "response",
+          rawPayload,
+          rawString: payloadString
+        });
+      }
+
       // Skip p2p "query" direction (/q/) only for getter commands — those are
       // echoes of our own outgoing requests and carry no device response data.
       // Set commands and others on /q/ may carry meaningful payload.

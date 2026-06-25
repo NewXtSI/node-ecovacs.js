@@ -9,6 +9,10 @@ const LOG_POS_PAYLOADS = !["0", "false", "no", "off"].includes(
   String(process.env.API2_LOG_POS_PAYLOADS || "1").trim().toLowerCase()
 );
 
+const LOG_AREASET_PAYLOADS = !["0", "false", "no", "off"].includes(
+  String(process.env.API2_LOG_AREASET_PAYLOADS || "1").trim().toLowerCase()
+);
+
 const LISTEN_SECONDS = (() => {
   const parsed = Number(process.env.API2_LISTEN_SECONDS);
   if (!Number.isFinite(parsed)) return 30;
@@ -186,6 +190,14 @@ async function main() {
 
       device.on("_rawAreaParameterPayload", ({ topicName, data }) => {
         console.log(`[${device.name}] AREA PARAM RAW ${topicName}:`, JSON.stringify(data, null, 2));
+      });
+    }
+
+    if (LOG_AREASET_PAYLOADS) {
+      device.on("_rawAreaSetPayload", ({ topicName, direction, fullTopic, rawPayload }) => {
+        console.log(`[${device.name}] AREASET RAW [${direction}] ${topicName}`);
+        console.log(`  topic: ${fullTopic}`);
+        console.log(`  payload: ${JSON.stringify(rawPayload?.body ?? rawPayload, null, 2)}`);
       });
     }
 
