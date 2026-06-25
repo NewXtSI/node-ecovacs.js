@@ -318,19 +318,19 @@ export class Api2Device extends EventEmitter {
     return this._state.mapInfo === UNSET ? null : this._state.mapInfo;
   }
 
-  /** Requests getArI with explicit type/mid/aid and returns command response. */
-  async requestArInfo(typeOrData = "ar", { mid = "1", aid = "0" } = {}) {
-    const data = (typeOrData && typeof typeOrData === "object" && !Array.isArray(typeOrData))
-      ? typeOrData
-      : { mid, aid, type: typeOrData };
+  /** Requests getArI with explicit type and returns command response. Default type is "0" for full area info. */
+  async requestArInfo(type = "0") {
+    const data = (type && typeof type === "object" && !Array.isArray(type))
+      ? type
+      : { type: String(type), aid: "0" };
     return this.sendCommand({ name: "getArI", data });
   }
 
-  /** Requests getMI with explicit type/mid/aid and returns command response. */
-  async requestMapInfo(typeOrData = "mi", { mid = "1", aid = "0" } = {}) {
-    const data = (typeOrData && typeof typeOrData === "object" && !Array.isArray(typeOrData))
-      ? typeOrData
-      : { mid, aid, type: typeOrData };
+  /** Requests getMI with explicit type and returns command response. Default type is "0" for full map info. */
+  async requestMapInfo(type = "0") {
+    const data = (type && typeof type === "object" && !Array.isArray(type))
+      ? type
+      : { type: String(type) };
     return this.sendCommand({ name: "getMI", data });
   }
 
@@ -641,13 +641,23 @@ export class Api2Device extends EventEmitter {
         break;
       }
       case "getArI":
-      case "onArI":
-        this._updateState("arInfo", data);
+      case "onArI": {
+        if (this._isBinaryTopicChunk(data)) {
+          this._ingestBinaryTopicChunk(topicName, data, "arInfo");
+        } else if (data && typeof data === "object") {
+          this._updateState("arInfo", data);
+        }
         break;
+      }
       case "getMI":
-      case "onMI":
-        this._updateState("mapInfo", data);
+      case "onMI": {
+        if (this._isBinaryTopicChunk(data)) {
+          this._ingestBinaryTopicChunk(topicName, data, "mapInfo");
+        } else if (data && typeof data === "object") {
+          this._updateState("mapInfo", data);
+        }
         break;
+      }
       case "getAreaParameter":
       case "onAreaParameter": {
         // getAreaParameter returns { areaParameters: [...] }

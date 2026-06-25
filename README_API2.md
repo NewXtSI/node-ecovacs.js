@@ -238,7 +238,7 @@ Legende:
 
 > ⁵ `onAR`-Pakete (und ggf. `getAR`-Replies, falls vorhanden) werden als Multipacket (`serial/index/infoSize/info`) zusammengebaut und nach vollständigem Empfang als `mapAr.decoded` bereitgestellt (LZMA + Legacy-Header-Fallback). Es wird aktuell kein automatischer `getAR`-Poll gesendet.
 
-> ⁶ `arInfo`/`mapInfo` sind passiv (kein Auto-Poll), da je nach Modell unterschiedliche Request-Parameter nötig sind. Für aktive Abfragen stehen `requestArInfo(...)` und `requestMapInfo(...)` bereit. Beide akzeptieren entweder einen `type`-String oder ein vollständiges `data`-Objekt (z. B. `{ mid, aid, type }`, `{ mid, aid, mapSetType }`).
+> ⁶ `arInfo`/`mapInfo` werden als Multipacket-Chunks (`serial/index/info/batid/infoSize`) zusammengebaut und nach vollständigem Empfang LZMA-dekodiert (wie areaSet). Für getArI: `await device.requestArInfo(type)` mit default `type: "0"` und `aid: "0"`. Für getMI: `await device.requestMapInfo(type)` mit default `type: "0"`.
 
 ---
 

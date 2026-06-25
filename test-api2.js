@@ -27,23 +27,10 @@ const LISTEN_SECONDS = (() => {
   return Math.max(0, parsed);
 })();
 
-const ARI_TYPE = String(process.env.API2_ARI_TYPE || "ar").trim() || "ar";
-const MI_TYPE = String(process.env.API2_MI_TYPE || "mi").trim() || "mi";
+
 const REQUEST_MAPINFO = ["1", "true", "yes", "on"].includes(
-  String(process.env.API2_REQUEST_MAPINFO || "0").trim().toLowerCase()
+  String(process.env.API2_REQUEST_MAPINFO || "1").trim().toLowerCase()
 );
-
-function parseJsonOrNull(value) {
-  if (typeof value !== "string" || value.trim().length === 0) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-const ARI_REQUEST_PAYLOAD = parseJsonOrNull(process.env.API2_ARI_REQUEST);
-const MI_REQUEST_PAYLOAD = parseJsonOrNull(process.env.API2_MI_REQUEST);
 
 async function loadCredentials() {
   const raw = await readFile("./credentials.json", "utf8");
@@ -397,12 +384,10 @@ async function main() {
     console.log("getArInfo() =", device.getArInfo());
     console.log("getMapInfo() =", device.getMapInfo());
     if (REQUEST_MAPINFO) {
-      const ariReq = ARI_REQUEST_PAYLOAD || { mid: "1", aid: "0", type: ARI_TYPE };
-      const miReq = MI_REQUEST_PAYLOAD || { mid: "1", aid: "0", type: MI_TYPE };
-      console.log("requestArInfo(payload) ...", ariReq);
-      await device.requestArInfo(ariReq);
-      console.log("requestMapInfo(payload) ...", miReq);
-      await device.requestMapInfo(miReq);
+      console.log("requestArInfo(type=0) ...");
+      await device.requestArInfo("0");
+      console.log("requestMapInfo(type=0) ...");
+      await device.requestMapInfo("0");
     } else {
       console.log("MapInfo requests skipped (set API2_REQUEST_MAPINFO=1 to send getArI/getMI)." );
     }
