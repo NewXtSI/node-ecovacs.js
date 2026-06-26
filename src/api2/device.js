@@ -1,9 +1,42 @@
 import { EventEmitter } from "node:events";
+import { createHash } from "node:crypto";
 import { decodeAreaSetPayload } from "./areaSetDecoder.js";
 import { decodeBinaryTopicBase64 } from "./binaryTopicDecoder.js";
+import { calculateBounds, generateMapSvg, transformPoint } from "./mapVisualizerSvg.js";
 
 // Internal sentinel used to detect "no previous value yet" vs. an actual null state.
 const UNSET = Symbol("UNSET");
+
+// Known ATR/API topics seen in the field but not yet fully modeled in Api2Device.
+// They are emitted via `topicBacklog` for visibility and future parser implementation.
+const KNOWN_BACKLOG_TOPICS = new Set([
+  "GetWKVer",
+  "getNetworkSwitch",
+  "getOta",
+  "getRTKOta",
+  "getMapState",
+  "getPIN",
+  "appping",
+  "getRTK",
+  "getCachedMapInfo",
+  "getBreakPointStatus",
+  "getMoveCtrlState",
+  "getSchedules",
+  "getRelocationState",
+  "getRobotFeature",
+  "getMoveupWarning",
+  "getCrossMapBorderWarning",
+  "getMapTrace",
+  "getScheduleTaskInfo",
+  "getScheduleLatestTask",
+  "onScheduleLatestTask",
+  "getGnss",
+  "onGnss",
+  "getRemoteSupport",
+  "onRemoteSupport",
+  "getRecognization",
+  "getWifiList"
+]);
 
 function stateEqual(a, b) {
   if (a === b) return true;
@@ -34,12 +67,29 @@ export class Api2Device extends EventEmitter {
       chargeState: UNSET,    // { isCharging, mode }
       chargeInfo: UNSET,     // { cid, trigger, state, other }
       mowInfo: UNSET,        // { trigger, other, state, type, cleanState }
+      mowCommand: UNSET,     // { command, data, content, parsed, ts }
+      fwBuryPoints: UNSET,   // { [substate]: payloadWithoutProtocolMeta }
+      rtk: UNSET,            // getRTK/onRTK payload
+      networkSwitch: UNSET,  // getNetworkSwitch/onNetworkSwitch
+      ota: UNSET,            // getOta/onOta
+      rtkOta: UNSET,         // getRTKOta/onRTKOta
+      mapState: UNSET,       // getMapState/onMapState
+      pin: UNSET,            // getPIN/onPIN
+      breakPointStatus: UNSET, // getBreakPointStatus/onBreakPointStatus
+      moveCtrlState: UNSET,  // getMoveCtrlState/onMoveCtrlState
+      robotFeature: UNSET,   // getRobotFeature/onRobotFeature
+      moveupWarning: UNSET,  // getMoveupWarning/onMoveupWarning
+      crossMapBorderWarning: UNSET, // getCrossMapBorderWarning/onCrossMapBorderWarning
+      relocationState: UNSET, // getRelocationState/onRelocationState
+      scheduleTaskInfo: UNSET, // getScheduleTaskInfo/onScheduleTaskInfo
+      scheduleLatestTask: UNSET, // getScheduleLatestTask/onScheduleLatestTask
       geolocation: UNSET,    // { enable, geoLocation: { longitude, latitude } }
       protectState: UNSET,   // onProtectState payload
       netInfo: UNSET,        // { ip, ssid, rssi, wkVer, mac }
       sleep: UNSET,          // { enable }
       error: UNSET,          // { code: [...] }
       lifeSpan: UNSET,       // { blade: { left, total }, ... }
+      volume: UNSET,         // { volume } / { level } / { value }
       cutEfficiency: UNSET,   // { level }
       obstacleHeight: UNSET,  // { level }
       cutHeight: UNSET,       // { level }
@@ -54,7 +104,9 @@ export class Api2Device extends EventEmitter {
       areaSet: UNSET,          // { ar: [...], vw: [...], nc: [] }  — lazy, all 3 types
       mapAr: UNSET,            // { decoded, infoSize, serial, ...meta } from getAR/onAR multipackets
       arInfo: UNSET,           // raw payload from getArI/onArI (area information)
-      mapInfo: UNSET           // raw payload from getMI/onMI (map information)
+      mapInfo: UNSET,          // raw payload from getMI/onMI (map information)
+      goatMap: UNSET,          // { svg, mapInfo, arInfo, bounds, viewBox, generatedAt }
+      deviceMap: UNSET         // { svg, viewBox, fingerprint, generatedAt }
     };
 
     // Tracks which commands have been requested but not yet answered,
@@ -78,6 +130,16 @@ export class Api2Device extends EventEmitter {
    */
   on(event, listener) {
     super.on(event, listener);
+    if ((event === "deviceMap" || event === "onDeviceMap") && this._state.deviceMap === UNSET) {
+      this._requestDeviceMapDependencies();
+      this._refreshDeviceMap();
+      return this;
+    }
+    if ((event === "goatMap" || event === "onGoatMap") && this._state.goatMap === UNSET) {
+      this._requestGoatMapDependencies();
+      this._refreshGoatMap();
+      return this;
+    }
     if (this._isStateEvent(event) && this._state[event] === UNSET && !this._isPassiveStateKey(event)) {
       if (event === "areaSet") {
         this._requestAllAreaSetTypes();
@@ -90,6 +152,16 @@ export class Api2Device extends EventEmitter {
 
   once(event, listener) {
     super.once(event, listener);
+    if ((event === "deviceMap" || event === "onDeviceMap") && this._state.deviceMap === UNSET) {
+      this._requestDeviceMapDependencies();
+      this._refreshDeviceMap();
+      return this;
+    }
+    if ((event === "goatMap" || event === "onGoatMap") && this._state.goatMap === UNSET) {
+      this._requestGoatMapDependencies();
+      this._refreshGoatMap();
+      return this;
+    }
     if (this._isStateEvent(event) && this._state[event] === UNSET && !this._isPassiveStateKey(event)) {
       if (event === "areaSet") {
         this._requestAllAreaSetTypes();
@@ -106,7 +178,7 @@ export class Api2Device extends EventEmitter {
   }
 
   _isPassiveStateKey(key) {
-    return key === "mapAr" || key === "arInfo" || key === "mapInfo";
+    return key === "mapAr" || key === "arInfo" || key === "mapInfo" || key === "goatMap" || key === "deviceMap" || key === "mowCommand" || key === "fwBuryPoints";
   }
 
   // ─── Device identity getters ──────────────────────────────────────────────
@@ -201,6 +273,81 @@ export class Api2Device extends EventEmitter {
     return this.getMowInfo()?.state ?? null;
   }
 
+  /** Returns latest acknowledged mow command payload or null; passive (no automatic poll command). */
+  getMowCommand() {
+    return this._state.mowCommand === UNSET ? null : this._state.mowCommand;
+  }
+
+  /** Returns latest RTK payload or null; auto-polls via getRTK if not yet received. */
+  getRtk() {
+    return this._getOrRequest("rtk");
+  }
+
+  getNetworkSwitch() {
+    return this._getOrRequest("networkSwitch");
+  }
+
+  getOta() {
+    return this._getOrRequest("ota");
+  }
+
+  getRtkOta() {
+    return this._getOrRequest("rtkOta");
+  }
+
+  getMapState() {
+    return this._getOrRequest("mapState");
+  }
+
+  getPin() {
+    return this._getOrRequest("pin");
+  }
+
+  getBreakPointStatus() {
+    return this._getOrRequest("breakPointStatus");
+  }
+
+  getMoveCtrlState() {
+    return this._getOrRequest("moveCtrlState");
+  }
+
+  getRobotFeature() {
+    return this._getOrRequest("robotFeature");
+  }
+
+  getMoveupWarning() {
+    return this._getOrRequest("moveupWarning");
+  }
+
+  getCrossMapBorderWarning() {
+    return this._getOrRequest("crossMapBorderWarning");
+  }
+
+  getRelocationState() {
+    return this._getOrRequest("relocationState");
+  }
+
+  getScheduleTaskInfo() {
+    return this._getOrRequest("scheduleTaskInfo");
+  }
+
+  getScheduleLatestTask() {
+    return this._getOrRequest("scheduleLatestTask");
+  }
+
+  /** Returns all cached FwBuryPoint substates or null; passive (event driven). */
+  getFwBuryPoints() {
+    return this._state.fwBuryPoints === UNSET ? null : this._state.fwBuryPoints;
+  }
+
+  /** Returns one cached FwBuryPoint substate payload or null. */
+  getFwBuryPoint(substate) {
+    if (!substate) return null;
+    const all = this.getFwBuryPoints();
+    if (!all) return null;
+    return all[substate] ?? null;
+  }
+
   // ─── State: geolocation / protectState / netInfo / sleep / error / lifeSpan
 
   /** Returns current geolocation or null; auto-polls via getGeolocation if not yet received. */
@@ -231,6 +378,11 @@ export class Api2Device extends EventEmitter {
   /** Returns current life span or null; auto-polls via getLifeSpan if not yet received. */
   getLifeSpan() {
     return this._getOrRequest("lifeSpan");
+  }
+
+  /** Returns current volume or null; auto-polls via getVolume if not yet received. */
+  getVolume() {
+    return this._getOrRequest("volume");
   }
 
   // ─── State: direct info-fields (with getInfo fallback support) ───────────
@@ -318,6 +470,30 @@ export class Api2Device extends EventEmitter {
     return this._state.mapInfo === UNSET ? null : this._state.mapInfo;
   }
 
+  /**
+   * Returns generated goat map payload or null.
+   * Lazy-requests getMI/getArI and becomes available once both are decoded.
+   */
+  getGoatMap() {
+    if (this._state.goatMap === UNSET) {
+      this._requestGoatMapDependencies();
+      this._refreshGoatMap();
+    }
+    return this._state.goatMap === UNSET ? null : this._state.goatMap;
+  }
+
+  /**
+   * Returns generated device position map payload or null.
+   * Uses goatMap viewBox and overlays goat/charger/rtk markers.
+   */
+  getDeviceMap() {
+    if (this._state.deviceMap === UNSET) {
+      this._requestDeviceMapDependencies();
+      this._refreshDeviceMap();
+    }
+    return this._state.deviceMap === UNSET ? null : this._state.deviceMap;
+  }
+
   /** Requests getArI with explicit type and returns command response. Default type is "0" for full area info. */
   async requestArInfo(type = "0") {
     const data = (type && typeof type === "object" && !Array.isArray(type))
@@ -332,6 +508,214 @@ export class Api2Device extends EventEmitter {
       ? type
       : { type: String(type) };
     return this.sendCommand({ name: "getMI", data });
+  }
+
+  /**
+   * Sends a generic mowing command through the underlying "clean" command channel.
+   * command examples: start, stop, pause, resume
+   */
+  async mow(command, data = null) {
+    const commandName = String(command || "").trim();
+    if (!commandName) {
+      throw new Error("mow(command, data) requires a non-empty command.");
+    }
+
+    const payload = { act: commandName };
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      payload.content = data;
+    }
+
+    const response = await this.sendCommand({
+      name: "clean",
+      data: payload
+    });
+
+    this._requestData("getCleanInfo");
+    return response;
+  }
+
+  _getCurrentMowTypeFallback() {
+    return this.getMowInfo()?.type || this.getMowCommand()?.content?.type || "spotArea";
+  }
+
+  _normalizeAreaIds(areaIds) {
+    if (typeof areaIds === "string") {
+      const ids = areaIds
+        .split(",")
+        .map((entry) => Number(entry.trim()))
+        .filter((id) => Number.isFinite(id));
+      if (ids.length === 0) {
+        throw new Error("mowArea requires at least one numeric area id.");
+      }
+      return ids;
+    }
+
+    if (Array.isArray(areaIds)) {
+      const ids = areaIds
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+      if (ids.length === 0) {
+        throw new Error("mowArea requires at least one numeric area id.");
+      }
+      return ids;
+    }
+
+    throw new Error("mowArea expects an array of ids or comma-separated id string.");
+  }
+
+  _normalizeBorderValue(target) {
+    if (typeof target === "string") {
+      const value = target.trim();
+      if (!value) {
+        throw new Error("mowBorder requires a non-empty target value.");
+      }
+      return value;
+    }
+
+    if (Array.isArray(target)) {
+      if (target.length === 0) {
+        throw new Error("mowBorder requires at least one target.");
+      }
+
+      if (target.every((entry) => Number.isFinite(Number(entry)))) {
+        return target.map((entry) => `aid:${Number(entry)}`).join(";");
+      }
+
+      const values = target
+        .map((entry) => String(entry).trim())
+        .filter((entry) => entry.length > 0);
+      if (values.length === 0) {
+        throw new Error("mowBorder requires non-empty border tokens.");
+      }
+      return values.join(";");
+    }
+
+    if (target && typeof target === "object") {
+      const aids = Array.isArray(target.aid) ? target.aid : [];
+      const vids = Array.isArray(target.vid) ? target.vid : [];
+      const aidTokens = aids.map((id) => `aid:${Number(id)}`).filter((token) => !token.endsWith(":NaN"));
+      const vidTokens = vids.map((id) => `vid:${Number(id)}`).filter((token) => !token.endsWith(":NaN"));
+      const tokens = [...aidTokens, ...vidTokens];
+      if (tokens.length === 0) {
+        throw new Error("mowBorder object requires aid[] and/or vid[] with numeric ids.");
+      }
+      return tokens.join(";");
+    }
+
+    throw new Error("mowBorder expects string, array, or object with aid/vid arrays.");
+  }
+
+  _parseMowCommandValue(type, value) {
+    if (type === "spotArea") {
+      const spotAreaIds = typeof value === "string"
+        ? value.split(",").map((entry) => Number(entry.trim())).filter((id) => Number.isFinite(id))
+        : [];
+      return {
+        spotAreaIds,
+        borderAreaIds: [],
+        borderVirtualIds: [],
+        unknownBorderTokens: []
+      };
+    }
+
+    if (type === "border") {
+      const result = {
+        spotAreaIds: [],
+        borderAreaIds: [],
+        borderVirtualIds: [],
+        unknownBorderTokens: []
+      };
+
+      if (typeof value !== "string" || value.trim().length === 0) {
+        return result;
+      }
+
+      const tokens = value.split(";").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+      for (const token of tokens) {
+        const [prefixRaw, idRaw] = token.split(":");
+        const prefix = String(prefixRaw || "").toLowerCase();
+        const id = Number(idRaw);
+        if (!Number.isFinite(id)) {
+          result.unknownBorderTokens.push(token);
+          continue;
+        }
+
+        if (prefix === "aid") {
+          result.borderAreaIds.push(id);
+        } else if (prefix === "vid") {
+          result.borderVirtualIds.push(id);
+        } else {
+          result.unknownBorderTokens.push(token);
+        }
+      }
+
+      return result;
+    }
+
+    return {
+      spotAreaIds: [],
+      borderAreaIds: [],
+      borderVirtualIds: [],
+      unknownBorderTokens: []
+    };
+  }
+
+  async startMow() {
+    return this.mow("start", { type: this._getCurrentMowTypeFallback() });
+  }
+
+  async pauseMow() {
+    return this.mow("pause", { type: this._getCurrentMowTypeFallback() });
+  }
+
+  async resumeMow() {
+    return this.mow("resume", { type: this._getCurrentMowTypeFallback() });
+  }
+
+  async stopMow() {
+    return this.mow("stop", { type: this._getCurrentMowTypeFallback() });
+  }
+
+  async start() {
+    return this.startMow();
+  }
+
+  async pause() {
+    return this.pauseMow();
+  }
+
+  async resume() {
+    return this.resumeMow();
+  }
+
+  async stop() {
+    return this.stopMow();
+  }
+
+  async mowArea(areaIds) {
+    const ids = this._normalizeAreaIds(areaIds);
+    return this.mow("start", {
+      type: "spotArea",
+      value: ids.join(",")
+    });
+  }
+
+  async mowBorder(borderIds) {
+    const value = this._normalizeBorderValue(borderIds);
+    return this.mow("start", {
+      type: "border",
+      value
+    });
+  }
+
+  async dock() {
+    const response = await this.sendCommand({
+      name: "charge",
+      data: { act: "go" }
+    });
+    this._requestData("getChargeState");
+    this._requestData("getChargeInfo");
+    return response;
   }
 
   // ─── Write commands (setters) ─────────────────────────────────────────────
@@ -489,6 +873,40 @@ export class Api2Device extends EventEmitter {
     return response;
   }
 
+  /**
+   * Sets device volume and triggers a refresh request afterward.
+   * Accepts either a number or a payload object.
+   * @param {number|{volume?:number,level?:number,value?:number}} volumeOrData
+   */
+  async setVolume(volumeOrData) {
+    let data;
+    if (volumeOrData && typeof volumeOrData === "object" && !Array.isArray(volumeOrData)) {
+      data = { ...volumeOrData };
+    } else {
+      data = { volume: Number(volumeOrData) };
+    }
+
+    const resolvedVolume = [data.volume, data.level, data.value]
+      .map((value) => Number(value))
+      .find((value) => Number.isFinite(value));
+
+    if (!Number.isFinite(resolvedVolume)) {
+      throw new Error("setVolume(...) requires a numeric volume/level/value.");
+    }
+
+    if (!Number.isFinite(Number(data.volume))) {
+      data.volume = resolvedVolume;
+    }
+
+    const response = await this.sendCommand({
+      name: "setVolume",
+      data
+    });
+
+    this._requestData("getVolume");
+    return response;
+  }
+
   /** Generic lazy-get helper: returns state value or null and fires request if UNSET. */
   _getOrRequest(key) {
     if (this._state[key] === UNSET) {
@@ -543,6 +961,32 @@ export class Api2Device extends EventEmitter {
         if (normalizedMowInfo) this._updateState("mowInfo", normalizedMowInfo);
         break;
       }
+      case "clean": {
+        if (data && typeof data.act !== "undefined") {
+          const content = data.content ?? null;
+          const type = content?.type ?? null;
+          const value = typeof content?.value === "string" ? content.value : "";
+          this._updateState("mowCommand", {
+            command: data.act,
+            data,
+            content,
+            type,
+            value,
+            parsed: this._parseMowCommandValue(type, value),
+            ts: Date.now()
+          });
+        }
+        break;
+      }
+      case "charge": {
+        // P2P command topic (not a state): emit so consumers can react to ack/command flow.
+        this.emit("charge", {
+          command: data?.act ?? null,
+          data,
+          ts: Date.now()
+        });
+        break;
+      }
       case "getGeolocation":
         this._updateState("geolocation", data);
         break;
@@ -562,6 +1006,10 @@ export class Api2Device extends EventEmitter {
         break;
       case "getLifeSpan":
         this._updateState("lifeSpan", data);
+        break;
+      case "getVolume":
+      case "onVolume":
+        this._updateState("volume", data);
         break;
       case "getCutEfficiency":
         this._updateState("cutEfficiency", data);
@@ -676,12 +1124,84 @@ export class Api2Device extends EventEmitter {
           const normalizedAreas = this._normalizeAreaParameters(rawAreas);
           if (normalizedAreas) this._updateState("areaParameters", normalizedAreas);
         }
+
+        this._ingestFwBuryPoint(topicName, data);
         break;
       }
+      case "getRTK":
+      case "onRTK": {
+        this._updateState("rtk", data);
+        break;
+      }
+      case "getNetworkSwitch":
+      case "onNetworkSwitch":
+        this._updateState("networkSwitch", data);
+        break;
+      case "getOta":
+      case "onOta":
+        this._updateState("ota", data);
+        break;
+      case "getRTKOta":
+      case "onRTKOta":
+        this._updateState("rtkOta", data);
+        break;
+      case "getMapState":
+      case "onMapState":
+        this._updateState("mapState", data);
+        break;
+      case "getPIN":
+      case "onPIN":
+        this._updateState("pin", data);
+        break;
+      case "getBreakPointStatus":
+      case "onBreakPointStatus":
+        this._updateState("breakPointStatus", data);
+        break;
+      case "getMoveCtrlState":
+      case "onMoveCtrlState":
+        this._updateState("moveCtrlState", data);
+        break;
+      case "getRobotFeature":
+      case "onRobotFeature":
+        this._updateState("robotFeature", data);
+        break;
+      case "getMoveupWarning":
+      case "onMoveupWarning":
+        this._updateState("moveupWarning", data);
+        break;
+      case "getCrossMapBorderWarning":
+      case "onCrossMapBorderWarning":
+        this._updateState("crossMapBorderWarning", data);
+        break;
+      case "getRelocationState":
+      case "onRelocationState":
+        this._updateState("relocationState", data);
+        break;
+      case "getScheduleTaskInfo":
+      case "onScheduleTaskInfo":
+        this._updateState("scheduleTaskInfo", data);
+        break;
+      case "getScheduleLatestTask":
+      case "onScheduleLatestTask":
+        this._updateState("scheduleLatestTask", data);
+        break;
       case "getInfo":
         this._ingestGetInfoData(data);
         break;
       default:
+        if (typeof topicName === "string" && topicName.startsWith("onFwBuryPoint-")) {
+          this._ingestFwBuryPoint(topicName, data);
+          break;
+        }
+
+        if (KNOWN_BACKLOG_TOPICS.has(topicName)) {
+          this.emit("topicBacklog", {
+            topicName,
+            data
+          });
+          break;
+        }
+
         // Emit a generic 'unknownTopic' event so the consumer can react if needed.
         this.emit("unknownTopic", { topicName, data });
         break;
@@ -702,6 +1222,63 @@ export class Api2Device extends EventEmitter {
     }
   }
 
+  _extractProtocolMeta(payload) {
+    if (!payload || typeof payload !== "object") {
+      return null;
+    }
+
+    const meta = {};
+    if (typeof payload.gid !== "undefined") meta.gid = payload.gid;
+    if (typeof payload.index !== "undefined") meta.index = payload.index;
+    if (typeof payload.ts !== "undefined") meta.ts = payload.ts;
+    return Object.keys(meta).length > 0 ? meta : null;
+  }
+
+  _stripProtocolMeta(payload) {
+    if (!payload || typeof payload !== "object") {
+      return payload;
+    }
+
+    const cleaned = { ...payload };
+    delete cleaned.gid;
+    delete cleaned.index;
+    delete cleaned.ts;
+    return cleaned;
+  }
+
+  _ingestFwBuryPoint(topicName, data) {
+    // ATR diagnostics are frequently null; ignore empty payloads.
+    if (data === null || typeof data === "undefined") {
+      return;
+    }
+
+    const substate = String(topicName || "").replace("onFwBuryPoint-", "");
+    if (!substate) {
+      return;
+    }
+
+    const payload = this._stripProtocolMeta(data);
+    const meta = this._extractProtocolMeta(data);
+
+    const current = this._state.fwBuryPoints === UNSET
+      ? {}
+      : { ...this._state.fwBuryPoints };
+
+    const previous = current[substate];
+    current[substate] = payload;
+    if (!stateEqual(previous, payload)) {
+      this._updateState("fwBuryPoints", current);
+    }
+
+    this.emit("fwBuryPoint", {
+      topicName,
+      substate,
+      payload,
+      meta,
+      rawPayload: data
+    });
+  }
+
   /**
    * Updates a single state field and emits a change event if the value differs.
    * @param {string} key - State field name (must exist in this._state)
@@ -716,6 +1293,161 @@ export class Api2Device extends EventEmitter {
     const cmdName = typeof cmd === "string" ? cmd : cmd.name;
     this._pendingRequests.delete(cmdName);
     this.emit(key, newValue);
+    if (key === "goatMap") {
+      this.emit("onGoatMap", newValue);
+    }
+    if (key === "deviceMap") {
+      this.emit("onDeviceMap", newValue);
+    }
+    if (key === "mapInfo" || key === "arInfo") {
+      this._refreshGoatMap();
+    }
+    if (key === "goatMap" || key === "goatPosition" || key === "chargePosition" || key === "rtkPosition") {
+      this._refreshDeviceMap();
+    }
+  }
+
+  _requestGoatMapDependencies() {
+    if (this._state.mapInfo === UNSET) {
+      this._requestData({ name: "getMI", data: { type: "0" } });
+    }
+    if (this._state.arInfo === UNSET) {
+      this._requestData({ name: "getArI", data: { type: "0", aid: "0" } });
+    }
+  }
+
+  _requestDeviceMapDependencies() {
+    this._requestGoatMapDependencies();
+    if (this._state.goatPosition === UNSET || this._state.chargePosition === UNSET || this._state.rtkPosition === UNSET) {
+      this._requestData("getPos");
+    }
+  }
+
+  _extractDecodedEntries(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (payload && typeof payload === "object" && Array.isArray(payload.decoded)) {
+      return payload.decoded;
+    }
+    return null;
+  }
+
+  _refreshGoatMap() {
+    const mapInfoEntries = this._extractDecodedEntries(this._state.mapInfo);
+    const arInfoEntries = this._extractDecodedEntries(this._state.arInfo);
+
+    if (!Array.isArray(mapInfoEntries) || !Array.isArray(arInfoEntries)) {
+      return;
+    }
+
+    try {
+      const svg = generateMapSvg(mapInfoEntries, { arInfo: arInfoEntries });
+      const bounds = calculateBounds(mapInfoEntries, arInfoEntries);
+      const viewBox = {
+        minX: bounds.minX,
+        minY: bounds.minY,
+        width: bounds.maxX - bounds.minX,
+        height: bounds.maxY - bounds.minY
+      };
+      const fingerprint = createHash("sha1")
+        .update(JSON.stringify(mapInfoEntries))
+        .update("|")
+        .update(JSON.stringify(arInfoEntries))
+        .digest("hex");
+      this._updateState("goatMap", {
+        generatedAt: new Date().toISOString(),
+        fingerprint,
+        svg,
+        bounds,
+        viewBox,
+        mapInfo: mapInfoEntries,
+        arInfo: arInfoEntries
+      });
+    } catch (error) {
+      this.emit("unknownTopic", {
+        topicName: "goatMap",
+        data: {
+          mapInfoCount: mapInfoEntries.length,
+          arInfoCount: arInfoEntries.length
+        },
+        error: error?.message || String(error)
+      });
+    }
+  }
+
+  _normalizePositionArray(value) {
+    if (Array.isArray(value)) return value.filter((item) => item && Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y)));
+    if (value && Number.isFinite(Number(value.x)) && Number.isFinite(Number(value.y))) return [value];
+    return [];
+  }
+
+  _buildDeviceMapSvg(goatMap) {
+    const viewBox = goatMap?.viewBox;
+    if (!viewBox) return null;
+
+    const goat = this._normalizePositionArray(this._state.goatPosition).map((item) => ({ ...item, type: "Goat", color: "#0057ff", radius: 34 }));
+    const charger = this._normalizePositionArray(this._state.chargePosition).map((item) => ({ ...item, type: "Charger", color: "#ff9500", radius: 28 }));
+    const rtk = this._normalizePositionArray(this._state.rtkPosition).map((item) => ({ ...item, type: "RTK", color: "#8e8e93", radius: 24 }));
+    const markers = [...goat, ...charger, ...rtk];
+
+    if (markers.length === 0) {
+      return null;
+    }
+
+    const markerSvg = markers
+      .map((marker, index) => {
+        const transformed = transformPoint({ x: Number(marker.x), y: Number(marker.y) });
+        const x = transformed.x;
+        const y = transformed.y;
+        const angle = Number.isFinite(Number(marker.a)) ? Number(marker.a) + 180 : null;
+        const arrowLength = marker.radius * 2.2;
+        const arrowX2 = angle === null ? x : x + (Math.cos((angle * Math.PI) / 180) * arrowLength);
+        const arrowY2 = angle === null ? y : y + (Math.sin((angle * Math.PI) / 180) * arrowLength);
+        const label = `${marker.type}${markers.length > 1 ? ` ${index + 1}` : ""}`;
+
+        return [
+          `  <g>`,
+          `    <title>${label}: x=${Number(marker.x)}, y=${Number(marker.y)}, a=${marker.a ?? "-"}</title>`,
+          `    <circle cx="${x}" cy="${y}" r="${marker.radius}" fill="${marker.color}" fill-opacity="0.25" stroke="${marker.color}" stroke-width="10"/>`,
+          angle === null ? "" : `    <line x1="${x}" y1="${y}" x2="${arrowX2}" y2="${arrowY2}" stroke="${marker.color}" stroke-width="12" stroke-linecap="round"/>`,
+          `    <text x="${x + marker.radius + 16}" y="${y - marker.radius - 8}" fill="${marker.color}" font-size="80">${label}</text>`,
+          `  </g>`
+        ].filter(Boolean).join("\n");
+      })
+      .join("\n");
+
+    return [
+      `<?xml version="1.0" encoding="UTF-8"?>`,
+      `<svg viewBox="${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}" xmlns="http://www.w3.org/2000/svg" width="1200" height="900">`,
+      `  <defs><style>text{font-family:Arial,sans-serif;font-weight:bold}</style></defs>`,
+      markerSvg,
+      `  <text x="${viewBox.minX + 50}" y="${viewBox.minY + 150}" fill="#666" font-size="90">Device Map (Goat/Charger/RTK)</text>`,
+      `</svg>`
+    ].join("\n");
+  }
+
+  _refreshDeviceMap() {
+    const goatMap = this._state.goatMap === UNSET ? null : this._state.goatMap;
+    if (!goatMap) return;
+
+    const svg = this._buildDeviceMapSvg(goatMap);
+    if (!svg) return;
+
+    const fingerprint = createHash("sha1")
+      .update(String(goatMap.fingerprint || ""))
+      .update("|")
+      .update(JSON.stringify(this._state.goatPosition === UNSET ? null : this._state.goatPosition))
+      .update("|")
+      .update(JSON.stringify(this._state.chargePosition === UNSET ? null : this._state.chargePosition))
+      .update("|")
+      .update(JSON.stringify(this._state.rtkPosition === UNSET ? null : this._state.rtkPosition))
+      .digest("hex");
+
+    this._updateState("deviceMap", {
+      generatedAt: new Date().toISOString(),
+      fingerprint,
+      svg,
+      viewBox: goatMap.viewBox
+    });
   }
 
   /**
@@ -760,6 +1492,9 @@ export class Api2Device extends EventEmitter {
     const map = {
       lifeSpan: { name: "getLifeSpan", data: { type: ["blade", "lensBrush"] } },
       mowInfo: "getCleanInfo",
+      rtk: "getRTK",
+      rtkOta: "getRTKOta",
+      pin: "getPIN",
       goatPosition: "getPos",
       chargePosition: "getPos",
       rtkPosition: "getPos",

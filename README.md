@@ -116,3 +116,55 @@ src/
 
 - `credentials.json` is intentionally gitignored.
 - The implementation follows the workflow and server conventions from the Python client reference.
+
+## API2 Mow Flow Test (Pause/Resume/Stop/Dock)
+
+`test-api2.js` contains an optional integration flow for GOAT mowing control.
+
+Sequence:
+
+1. Pause current mowing task (`clean` + `act: pause`)
+2. Wait N seconds
+3. Resume mowing (`clean` + `act: resume`)
+4. Wait N seconds
+5. Stop mowing (`clean` + `act: stop`)
+6. Send mower to dock (`charge` + `act: go`)
+
+### Enable the flow
+
+PowerShell:
+
+```powershell
+$env:API2_RUN_MOW_FLOW_TEST="1"
+$env:API2_MOW_FLOW_WAIT_SECONDS="5"
+npm run test:api2
+```
+
+Optional:
+
+- `API2_MOW_FLOW_WAIT_SECONDS` default is `5`
+- `API2_LISTEN_SECONDS` controls post-flow observation time
+
+### Success indicators in logs
+
+You should see these lines in order:
+
+- `mow flow: pause command sent`
+- `mow flow: resume command sent`
+- `mow flow: stop command sent`
+- `mow flow: dock command sent`
+
+And matching command payloads:
+
+- `command: 'clean', data: { act: 'pause', content: { type: 'spotArea' } }`
+- `command: 'clean', data: { act: 'resume', content: { type: 'spotArea' } }`
+- `command: 'clean', data: { act: 'stop', content: { type: 'spotArea' } }`
+- `command: 'charge', data: { act: 'go' }`
+
+Follow-up signals that confirm execution:
+
+- `mowCommand: { command: 'pause' ... }`
+- `mowCommand: { command: 'resume' ... }`
+- `mowCommand: { command: 'stop' ... }`
+- `charge command: { command: 'go' }`
+- `chargeInfo ... state: 'goCharging'`

@@ -437,7 +437,9 @@ export class Api2Factory {
         return;
       }
 
-      const data = payload?.body?.data ?? null;
+      const data = topicName.startsWith("onFwBuryPoint-")
+        ? (payload?.body?.data ?? payload?.body ?? null)
+        : (payload?.body?.data ?? null);
 
       // Temporary diagnostics: expose raw position payloads so consumers can
       // inspect all coordinate blocks (robot/dock/rtk/...) during rollout.

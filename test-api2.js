@@ -1,13 +1,24 @@
 import { readFile } from "node:fs/promises";
 import { Api2Factory } from "./src/api2/index.js";
 import { writeFile } from "node:fs/promises";
-import { generateMapSvg, getCoordinateSets } from "./src/api2/mapVisualizerSvg.js";
+import { getCoordinateSets } from "./src/api2/mapVisualizerSvg.js";
+import { generateMapOsmHtml } from "./src/api2/mapVisualizerOsmHtml.js";
 
 let runtimeFactory = null;
 
 const RUN_SETTER_TESTS = ["1", "true", "yes", "on"].includes(
   String(process.env.API2_RUN_SETTER_TESTS || "").trim().toLowerCase()
 );
+
+const RUN_MOW_FLOW_TEST = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_RUN_MOW_FLOW_TEST || "").trim().toLowerCase()
+);
+
+const MOW_FLOW_WAIT_SECONDS = (() => {
+  const parsed = Number(process.env.API2_MOW_FLOW_WAIT_SECONDS);
+  if (!Number.isFinite(parsed)) return 5;
+  return Math.max(0, parsed);
+})();
 
 const LOG_POS_PAYLOADS = !["0", "false", "no", "off"].includes(
   String(process.env.API2_LOG_POS_PAYLOADS || "1").trim().toLowerCase()
@@ -23,6 +34,15 @@ const LOG_MAPAR_PAYLOADS = !["0", "false", "no", "off"].includes(
 
 const LOG_MAPINFO_PAYLOADS = !["0", "false", "no", "off"].includes(
   String(process.env.API2_LOG_MAPINFO_PAYLOADS || "1").trim().toLowerCase()
+);
+const LOG_MAP_DETAILS = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_LOG_MAP_DETAILS || "0").trim().toLowerCase()
+);
+const LOG_STATE_DETAILS = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_LOG_STATE_DETAILS || "0").trim().toLowerCase()
+);
+const LOG_STATE_SUMMARY = !LOG_STATE_DETAILS && !["0", "false", "no", "off"].includes(
+  String(process.env.API2_LOG_STATE_SUMMARY || "1").trim().toLowerCase()
 );
 
 const LISTEN_SECONDS = (() => {
@@ -41,6 +61,20 @@ const REQUEST_MAPINFO = ["1", "true", "yes", "on"].includes(
 
 const MAPINFO_REQUEST_TYPE = String(process.env.API2_REQUEST_MAPINFO_TYPE || "0").trim() || "0";
 const ARINFO_REQUEST_TYPE = String(process.env.API2_REQUEST_ARINFO_TYPE || "0").trim() || "0";
+const EXPORT_OSM_HTML = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_EXPORT_OSM_HTML || "0").trim().toLowerCase()
+);
+const OSM_METERS_PER_UNIT = Number(process.env.API2_OSM_METERS_PER_UNIT || "0.001");
+const OSM_ROTATION_DEG = Number(process.env.API2_OSM_ROTATION_DEG || "75");
+const OSM_TILE_PROVIDER = String(process.env.API2_OSM_TILE_PROVIDER || "osm").trim().toLowerCase();
+const MAPBOX_ACCESS_TOKEN = String(process.env.API2_MAPBOX_ACCESS_TOKEN || "").trim();
+const MAPBOX_STYLE_ID = String(process.env.API2_MAPBOX_STYLE_ID || "mapbox/satellite-v9").trim();
+const OSM_DISABLE_BASEMAP = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_OSM_DISABLE_BASEMAP || "0").trim().toLowerCase()
+);
+const OSM_DISABLE_INTERACTION = ["1", "true", "yes", "on"].includes(
+  String(process.env.API2_OSM_DISABLE_INTERACTION || "0").trim().toLowerCase()
+);
 
 async function loadCredentials() {
   const raw = await readFile("./credentials.json", "utf8");
@@ -94,6 +128,39 @@ function toNumberOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function summarizeStateValue(value) {
+  if (value === null || typeof value === "undefined") return "null";
+  if (Array.isArray(value)) return `array(${value.length})`;
+  if (typeof value !== "object") return String(value);
+
+  const preferredKeys = [
+    "state", "status", "mode", "trigger", "type", "progress", "enable", "result",
+    "online", "isCharging", "value", "level", "volume", "left", "tm", "isSet", "expandState"
+  ];
+  const parts = preferredKeys
+    .filter((key) => Object.prototype.hasOwnProperty.call(value, key))
+    .slice(0, 5)
+    .map((key) => `${key}=${value[key]}`);
+
+  if (parts.length > 0) {
+    return `{${parts.join(", ")}}`;
+  }
+
+  const keys = Object.keys(value);
+  return `object(${keys.length} keys)`;
+}
+
+function logStateEvent(deviceName, stateName, data) {
+  if (LOG_STATE_DETAILS) {
+    console.log(`[${deviceName}] ${stateName}:`, data);
+    return;
+  }
+
+  if (LOG_STATE_SUMMARY) {
+    console.log(`[${deviceName}] ${stateName}: ${summarizeStateValue(data)}`);
+  }
+}
+
 async function ensureCurrentState(device, getter, eventName, requestCommand = null) {
   let value = getter();
   if (value && typeof value === "object") {
@@ -106,6 +173,10 @@ async function ensureCurrentState(device, getter, eventName, requestCommand = nu
 
   value = await waitForEvent(device, eventName, 7000);
   return value;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function runSetterRoundtrip({
@@ -175,21 +246,90 @@ async function main() {
   for (const device of goatDevices) {
     let latestArInfo = null;
     let latestMapInfo = null;
+    let latestGeoLocation = null;
+    let latestGoatPosition = null;
+    let latestValidGoatPosition = null;
+    let lastSavedGoatMapFingerprint = null;
+    let lastSavedDeviceMapFingerprint = null;
+    const snapshotTimestampByFingerprint = new Map();
 
-    const writeMapVisualization = (mapInfoEntries = latestMapInfo, arInfoEntries = latestArInfo) => {
-      if (!Array.isArray(mapInfoEntries) || mapInfoEntries.length === 0) {
+    const timestampForFingerprint = (fingerprint) => {
+      if (!fingerprint) {
+        return new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
+      }
+      const known = snapshotTimestampByFingerprint.get(fingerprint);
+      if (known) return known;
+      const created = new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
+      snapshotTimestampByFingerprint.set(fingerprint, created);
+      return created;
+    };
+    const writeGoatMapSnapshot = (goatMapPayload) => {
+      if (!goatMapPayload || typeof goatMapPayload.svg !== "string" || goatMapPayload.svg.length === 0) {
+        return;
+      }
+
+      if (goatMapPayload.fingerprint && goatMapPayload.fingerprint === lastSavedGoatMapFingerprint) {
         return;
       }
 
       (async () => {
         try {
-          const svg = generateMapSvg(mapInfoEntries, { arInfo: arInfoEntries });
-          const timestamp = new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
+          const timestamp = timestampForFingerprint(goatMapPayload.fingerprint);
           const filename = `map_visualization_${timestamp}.svg`;
-          await writeFile(filename, svg, "utf8");
+          await writeFile(filename, goatMapPayload.svg, "utf8");
+          if (goatMapPayload.fingerprint) {
+            lastSavedGoatMapFingerprint = goatMapPayload.fingerprint;
+          }
           console.log(`[${device.name}] SVG saved: ${filename}`);
+
+          if (EXPORT_OSM_HTML) {
+            const anchorGoatPosition = latestValidGoatPosition ?? latestGoatPosition;
+            if (latestGeoLocation && anchorGoatPosition) {
+              const osmHtml = generateMapOsmHtml(goatMapPayload.mapInfo, {
+                arInfo: goatMapPayload.arInfo,
+                geolocation: latestGeoLocation,
+                goatPosition: anchorGoatPosition,
+                metersPerUnit: Number.isFinite(OSM_METERS_PER_UNIT) ? OSM_METERS_PER_UNIT : 0.001,
+                rotationDeg: Number.isFinite(OSM_ROTATION_DEG) ? OSM_ROTATION_DEG : 75,
+                tileProvider: OSM_TILE_PROVIDER,
+                mapboxAccessToken: MAPBOX_ACCESS_TOKEN,
+                mapboxStyleId: MAPBOX_STYLE_ID,
+                disableBasemap: OSM_DISABLE_BASEMAP,
+                disableInteraction: OSM_DISABLE_INTERACTION
+              });
+              const htmlFile = `map_visualization_${timestamp}.html`;
+              await writeFile(htmlFile, osmHtml, "utf8");
+              console.log(`[${device.name}] OSM HTML saved: ${htmlFile}`);
+            } else {
+              console.log(`[${device.name}] OSM HTML pending: waiting for geolocation and/or goatPosition anchor.`);
+            }
+          }
         } catch (err) {
           console.error(`[${device.name}] SVG generation failed:`, err.message);
+        }
+      })();
+    };
+
+    const writeDeviceMapSnapshot = (deviceMapPayload, goatMapFingerprint = null) => {
+      if (!deviceMapPayload || typeof deviceMapPayload.svg !== "string" || deviceMapPayload.svg.length === 0) {
+        return;
+      }
+
+      if (deviceMapPayload.fingerprint && deviceMapPayload.fingerprint === lastSavedDeviceMapFingerprint) {
+        return;
+      }
+
+      (async () => {
+        try {
+          const timestamp = timestampForFingerprint(goatMapFingerprint || deviceMapPayload.fingerprint);
+          const filename = `deviceMap_visualization_${timestamp}.svg`;
+          await writeFile(filename, deviceMapPayload.svg, "utf8");
+          if (deviceMapPayload.fingerprint) {
+            lastSavedDeviceMapFingerprint = deviceMapPayload.fingerprint;
+          }
+          console.log(`[${device.name}] deviceMap SVG saved: ${filename}`);
+        } catch (err) {
+          console.error(`[${device.name}] deviceMap SVG generation failed:`, err.message);
         }
       })();
     };
@@ -208,31 +348,39 @@ async function main() {
 
     // Subscribe after connecting so the lazy-load request has a commander to use.
     device.on("stats", (data) => {
-      console.log(`[${device.name}] stats:`, data);
+      logStateEvent(device.name, "stats", data);
     });
 
     device.on("lastTimeStats", (data) => {
-      console.log(`[${device.name}] lastTimeStats:`, data);
+      logStateEvent(device.name, "lastTimeStats", data);
     });
 
     device.on("totalStats", (data) => {
-      console.log(`[${device.name}] totalStats:`, data);
+      logStateEvent(device.name, "totalStats", data);
     });
 
     device.on("battery", (data) => {
-      console.log(`[${device.name}] battery:`, data);
+      logStateEvent(device.name, "battery", data);
     });
 
     device.on("goatPosition", (data) => {
-      console.log(`[${device.name}] goatPosition:`, data);
+      latestGoatPosition = data;
+      if (data && Number(data.invalid) === 0) {
+        latestValidGoatPosition = data;
+      }
+      logStateEvent(device.name, "goatPosition", data);
     });
 
     device.on("chargePosition", (data) => {
-      console.log(`[${device.name}] chargePosition:`, data);
+      logStateEvent(device.name, "chargePosition", data);
     });
 
     device.on("rtkPosition", (data) => {
-      console.log(`[${device.name}] rtkPosition:`, data);
+      logStateEvent(device.name, "rtkPosition", data);
+    });
+
+    device.on("rtk", (data) => {
+      logStateEvent(device.name, "rtk", data);
     });
 
     if (LOG_POS_PAYLOADS) {
@@ -264,79 +412,186 @@ async function main() {
 
 
     device.on("chargeState", (data) => {
-      console.log(`[${device.name}] chargeState:`, data);
+      logStateEvent(device.name, "chargeState", data);
     });
 
     device.on("chargeInfo", (data) => {
-      console.log(`[${device.name}] chargeInfo:`, data);
+      logStateEvent(device.name, "chargeInfo", data);
+    });
+
+    device.on("charge", (event) => {
+      const command = event?.command ?? null;
+      const payload = event?.data ?? null;
+      if (LOG_STATE_DETAILS) {
+        console.log(`[${device.name}] charge command:`, { command });
+        console.log(`  payload: ${JSON.stringify(payload, null, 2)}`);
+      } else if (LOG_STATE_SUMMARY) {
+        console.log(`[${device.name}] charge command: ${command ?? "unknown"}`);
+      }
     });
 
     device.on("mowInfo", (data) => {
-      console.log(`[${device.name}] mowInfo:`, data);
+      logStateEvent(device.name, "mowInfo", data);
+    });
+
+    device.on("mowCommand", (data) => {
+      console.log(`[${device.name}] mowCommand:`, {
+        command: data?.command ?? null,
+        type: data?.type ?? null,
+        value: data?.value ?? null
+      });
+      console.log(`  payload: ${JSON.stringify(data?.data ?? data, null, 2)}`);
     });
 
     device.on("geolocation", (data) => {
-      console.log(`[${device.name}] geolocation:`, data);
+      latestGeoLocation = data;
+      logStateEvent(device.name, "geolocation", data);
+    });
+
+    device.on("goatMap", (payload) => {
+      const mapInfoCount = Array.isArray(payload?.mapInfo) ? payload.mapInfo.length : 0;
+      const arInfoCount = Array.isArray(payload?.arInfo) ? payload.arInfo.length : 0;
+      console.log(`[${device.name}] goatMap ready: mapInfo=${mapInfoCount}, arInfo=${arInfoCount}`);
+      writeGoatMapSnapshot(payload);
+
+      // When goatMap updates, try writing deviceMap too (same bbox/timestamp group).
+      const deviceMap = device.getDeviceMap();
+      if (deviceMap) {
+        writeDeviceMapSnapshot(deviceMap, payload?.fingerprint ?? null);
+      }
+    });
+
+    // Alias event for explicit internal hook naming requested by user.
+    device.on("onGoatMap", (payload) => {
+      const mapInfoCount = Array.isArray(payload?.mapInfo) ? payload.mapInfo.length : 0;
+      const arInfoCount = Array.isArray(payload?.arInfo) ? payload.arInfo.length : 0;
+      console.log(`[${device.name}] onGoatMap: mapInfo=${mapInfoCount}, arInfo=${arInfoCount}`);
+    });
+
+    device.on("deviceMap", (payload) => {
+      console.log(`[${device.name}] deviceMap ready`);
+      writeDeviceMapSnapshot(payload, device.getGoatMap()?.fingerprint ?? null);
+    });
+
+    device.on("onDeviceMap", (payload) => {
+      const hasViewBox = payload?.viewBox ? "yes" : "no";
+      console.log(`[${device.name}] onDeviceMap: viewBox=${hasViewBox}`);
     });
 
     device.on("protectState", (data) => {
-      console.log(`[${device.name}] protectState:`, data);
+      logStateEvent(device.name, "protectState", data);
     });
 
     device.on("netInfo", (data) => {
-      console.log(`[${device.name}] netInfo:`, data);
+      logStateEvent(device.name, "netInfo", data);
+    });
+
+    device.on("networkSwitch", (data) => {
+      logStateEvent(device.name, "networkSwitch", data);
+    });
+
+    device.on("ota", (data) => {
+      logStateEvent(device.name, "ota", data);
+    });
+
+    device.on("rtkOta", (data) => {
+      logStateEvent(device.name, "rtkOta", data);
+    });
+
+    device.on("mapState", (data) => {
+      logStateEvent(device.name, "mapState", data);
+    });
+
+    device.on("pin", (data) => {
+      logStateEvent(device.name, "pin", data);
+    });
+
+    device.on("breakPointStatus", (data) => {
+      logStateEvent(device.name, "breakPointStatus", data);
+    });
+
+    device.on("moveCtrlState", (data) => {
+      logStateEvent(device.name, "moveCtrlState", data);
+    });
+
+    device.on("robotFeature", (data) => {
+      logStateEvent(device.name, "robotFeature", data);
+    });
+
+    device.on("moveupWarning", (data) => {
+      logStateEvent(device.name, "moveupWarning", data);
+    });
+
+    device.on("crossMapBorderWarning", (data) => {
+      logStateEvent(device.name, "crossMapBorderWarning", data);
+    });
+
+    device.on("relocationState", (data) => {
+      logStateEvent(device.name, "relocationState", data);
+    });
+
+    device.on("scheduleTaskInfo", (data) => {
+      logStateEvent(device.name, "scheduleTaskInfo", data);
+    });
+
+    device.on("scheduleLatestTask", (data) => {
+      logStateEvent(device.name, "scheduleLatestTask", data);
     });
 
     device.on("sleep", (data) => {
-      console.log(`[${device.name}] sleep:`, data);
+      logStateEvent(device.name, "sleep", data);
     });
 
     device.on("error", (data) => {
-      console.log(`[${device.name}] error:`, data);
+      logStateEvent(device.name, "error", data);
     });
 
     device.on("lifeSpan", (data) => {
-      console.log(`[${device.name}] lifeSpan:`, data);
+      logStateEvent(device.name, "lifeSpan", data);
+    });
+
+    device.on("volume", (data) => {
+      logStateEvent(device.name, "volume", data);
     });
 
     device.on("cutDirection", (data) => {
-      console.log(`[${device.name}] cutDirection:`, data);
+      logStateEvent(device.name, "cutDirection", data);
     });
 
     device.on("cutHeight", (data) => {
-      console.log(`[${device.name}] cutHeight:`, data);
+      logStateEvent(device.name, "cutHeight", data);
     });
 
     device.on("obstacleHeight", (data) => {
-      console.log(`[${device.name}] obstacleHeight:`, data);
+      logStateEvent(device.name, "obstacleHeight", data);
     });
 
     device.on("cutEfficiency", (data) => {
-      console.log(`[${device.name}] cutEfficiency:`, data);
+      logStateEvent(device.name, "cutEfficiency", data);
     });
 
     device.on("autoCutDirection", (data) => {
-      console.log(`[${device.name}] autoCutDirection:`, data);
+      logStateEvent(device.name, "autoCutDirection", data);
     });
 
     device.on("rainDelay", (data) => {
-      console.log(`[${device.name}] rainDelay:`, data);
+      logStateEvent(device.name, "rainDelay", data);
     });
 
     device.on("animProtect", (data) => {
-      console.log(`[${device.name}] animProtect:`, data);
+      logStateEvent(device.name, "animProtect", data);
     });
 
     device.on("timeZone", (data) => {
-      console.log(`[${device.name}] timeZone:`, data);
+      logStateEvent(device.name, "timeZone", data);
     });
 
     device.on("customCutMode", (data) => {
-      console.log(`[${device.name}] customCutMode:`, data);
+      logStateEvent(device.name, "customCutMode", data);
     });
 
     device.on("borderSwitch", (data) => {
-      console.log(`[${device.name}] borderSwitch:`, data);
+      logStateEvent(device.name, "borderSwitch", data);
     });
 
     device.on("areaParameters", (data) => {
@@ -369,19 +624,20 @@ async function main() {
       if (Array.isArray(decoded)) {
         latestArInfo = decoded;
         console.log(`[${device.name}] arInfo: ${decoded.length} area(s)`);
-        decoded.forEach((area, idx) => {
-          if (Array.isArray(area)) {
-            const coordinateSets = getCoordinateSets(area, `area-${idx}`);
-            const areaId = String(area[0] ?? "?");
-            const layer = String(area[1] ?? "?");
-            const ids = [...new Set(coordinateSets.map(set => set.coordinateType))].join(",");
-            const areaStr = area.map(s => String(s).substring(0, 30)).join(" | ");
-            console.log(`  [${idx}] areaId=${areaId}, layer=${layer}, polygons=${coordinateSets.length}, ids=[${ids}], ${areaStr}...`);
-          } else {
-            console.log(`  [${idx}] ${String(area).substring(0, 30)}...`);
-          }
-        });
-        writeMapVisualization(latestMapInfo, latestArInfo);
+        if (LOG_MAP_DETAILS) {
+          decoded.forEach((area, idx) => {
+            if (Array.isArray(area)) {
+              const coordinateSets = getCoordinateSets(area, `area-${idx}`);
+              const areaId = String(area[0] ?? "?");
+              const layer = String(area[1] ?? "?");
+              const ids = [...new Set(coordinateSets.map(set => set.coordinateType))].join(",");
+              const areaStr = area.map(s => String(s).substring(0, 30)).join(" | ");
+              console.log(`  [${idx}] areaId=${areaId}, layer=${layer}, polygons=${coordinateSets.length}, ids=[${ids}], ${areaStr}...`);
+            } else {
+              console.log(`  [${idx}] ${String(area).substring(0, 30)}...`);
+            }
+          });
+        }
       } else {
         console.log(`[${device.name}] arInfo:`, decoded ?? data);
       }
@@ -392,31 +648,57 @@ async function main() {
       if (Array.isArray(decoded)) {
         latestMapInfo = decoded;
         console.log(`[${device.name}] mapInfo: ${decoded.length} room(s)/zone(s)`);
-        decoded.forEach((room, idx) => {
-          if (Array.isArray(room)) {
-            const roomId = room[0];
-            const coordinateSets = getCoordinateSets(room, `room-${idx}`);
-            const fieldPreview = room
-              .slice(1)
-              .map((value, fieldIdx) => `f${fieldIdx + 1}=${String(value).substring(0, 40)}`)
-              .join(" | ");
-            console.log(`  [${idx}] id=${roomId}, polygons=${coordinateSets.length}, ${fieldPreview}...`);
-          } else {
-            console.log(`  [${idx}] ${String(room).substring(0, 80)}...`);
-          }
-        });
-        writeMapVisualization(latestMapInfo, latestArInfo);
+        if (LOG_MAP_DETAILS) {
+          decoded.forEach((room, idx) => {
+            if (Array.isArray(room)) {
+              const roomId = room[0];
+              const coordinateSets = getCoordinateSets(room, `room-${idx}`);
+              const fieldPreview = room
+                .slice(1)
+                .map((value, fieldIdx) => `f${fieldIdx + 1}=${String(value).substring(0, 40)}`)
+                .join(" | ");
+              console.log(`  [${idx}] id=${roomId}, polygons=${coordinateSets.length}, ${fieldPreview}...`);
+            } else {
+              console.log(`  [${idx}] ${String(room).substring(0, 80)}...`);
+            }
+          });
+        }
       } else {
         console.log(`[${device.name}] mapInfo:`, decoded ?? data);
       }
     });
 
-    device.on("unknownTopic", ({ topicName, data, error }) => {
-      console.log(`[${device.name}] unknownTopic: ${topicName}`);
-      if (error) {
-        console.log(`  error: ${error}`);
+    device.on("fwBuryPoint", ({ substate, payload, meta }) => {
+      if (LOG_STATE_DETAILS) {
+        console.log(`[${device.name}] fwBuryPoint: ${substate}`);
+        if (meta) {
+          console.log(`  meta: ${JSON.stringify(meta)}`);
+        }
+        console.log(`  payload: ${JSON.stringify(payload, null, 2)}`);
+      } else if (LOG_STATE_SUMMARY) {
+        console.log(`[${device.name}] fwBuryPoint: ${substate} ${meta ? `(meta gid=${meta.gid ?? "-"}, idx=${meta.index ?? "-"})` : ""}`);
       }
-      console.log(`  data: ${JSON.stringify(data, null, 2)}`);
+    });
+
+    device.on("topicBacklog", ({ topicName, data }) => {
+      if (LOG_STATE_DETAILS) {
+        console.log(`[${device.name}] topicBacklog: ${topicName}`);
+        console.log(`  data: ${JSON.stringify(data, null, 2)}`);
+      } else if (LOG_STATE_SUMMARY) {
+        console.log(`[${device.name}] topicBacklog: ${topicName} ${summarizeStateValue(data)}`);
+      }
+    });
+
+    device.on("unknownTopic", ({ topicName, data, error }) => {
+      if (LOG_STATE_DETAILS) {
+        console.log(`[${device.name}] unknownTopic: ${topicName}`);
+        if (error) {
+          console.log(`  error: ${error}`);
+        }
+        console.log(`  data: ${JSON.stringify(data, null, 2)}`);
+      } else if (LOG_STATE_SUMMARY) {
+        console.log(`[${device.name}] unknownTopic: ${topicName} ${summarizeStateValue(data)}${error ? ` error=${error}` : ""}`);
+      }
     });
 
     // Explicitly call all getters.
@@ -427,16 +709,32 @@ async function main() {
     console.log("getGoatPosition() =", device.getGoatPosition());
     console.log("getChargePosition() =", device.getChargePosition());
     console.log("getRtkPosition() =", device.getRtkPosition());
+    console.log("getRtk() =", device.getRtk());
     console.log("getChargeState() =", device.getChargeState());
     console.log("getChargeInfo() =", device.getChargeInfo());
     console.log("getMowInfo() =", device.getMowInfo());
     console.log("getMowState() =", device.getMowState());
+    console.log("getMowCommand() =", device.getMowCommand());
     console.log("getGeolocation() =", device.getGeolocation());
     console.log("getProtectState() =", device.getProtectState());
     console.log("getNetInfo() =", device.getNetInfo());
+    console.log("getNetworkSwitch() =", device.getNetworkSwitch());
+    console.log("getOta() =", device.getOta());
+    console.log("getRtkOta() =", device.getRtkOta());
+    console.log("getMapState() =", device.getMapState());
+    console.log("getPin() =", device.getPin());
+    console.log("getBreakPointStatus() =", device.getBreakPointStatus());
+    console.log("getMoveCtrlState() =", device.getMoveCtrlState());
+    console.log("getRobotFeature() =", device.getRobotFeature());
+    console.log("getMoveupWarning() =", device.getMoveupWarning());
+    console.log("getCrossMapBorderWarning() =", device.getCrossMapBorderWarning());
+    console.log("getRelocationState() =", device.getRelocationState());
+    console.log("getScheduleTaskInfo() =", device.getScheduleTaskInfo());
+    console.log("getScheduleLatestTask() =", device.getScheduleLatestTask());
     console.log("getSleep() =", device.getSleep());
     console.log("getError() =", device.getError());
     console.log("getLifeSpan() =", device.getLifeSpan());
+    console.log("getVolume() =", device.getVolume());
     console.log("getCutDirection() =", device.getCutDirection());
     console.log("getCutHeight() =", device.getCutHeight());
     console.log("getObstacleHeight() =", device.getObstacleHeight());
@@ -455,6 +753,10 @@ async function main() {
     console.log("getMapAr() =", device.getMapAr());
     console.log("getArInfo() =", device.getArInfo());
     console.log("getMapInfo() =", device.getMapInfo());
+    console.log("getFwBuryPoints() =", device.getFwBuryPoints());
+    console.log("getFwBuryPoint('bd_setting') =", device.getFwBuryPoint("bd_setting"));
+    console.log("getGoatMap() =", device.getGoatMap());
+    console.log("getDeviceMap() =", device.getDeviceMap());
     console.log("Map request config =", {
       requestArInfo: REQUEST_ARINFO,
       requestMapInfo: REQUEST_MAPINFO,
@@ -509,6 +811,25 @@ async function main() {
       // Additional setter roundtrips for newly implemented API2 setters.
       // Each block is isolated so one failing setter does not stop the others.
       const setterTests = [
+        {
+          label: "volume",
+          eventName: "volume",
+          getter: () => device.getVolume(),
+          requestCommand: "getVolume",
+          setter: (value) => device.setVolume(value),
+          buildTarget: (before) => {
+            const current = [before?.volume, before?.level, before?.value]
+              .map((value) => toNumberOrNull(value))
+              .find((value) => value !== null);
+            if (current === undefined || current === null) {
+              throw new Error(`volume payload invalid: ${JSON.stringify(before)}`);
+            }
+
+            // Keep values in a sane range while still forcing an actual state change.
+            const nextVolume = current >= 10 ? current - 5 : current + 5;
+            return { volume: Math.max(0, Math.min(100, nextVolume)) };
+          }
+        },
         {
           label: "cutHeight",
           eventName: "cutHeight",
@@ -594,6 +915,33 @@ async function main() {
       }
     } else {
       console.log("Setter tests skipped (set API2_RUN_SETTER_TESTS=1 to enable).");
+    }
+
+    if (RUN_MOW_FLOW_TEST) {
+      const waitMs = MOW_FLOW_WAIT_SECONDS * 1000;
+      console.log(`Mow flow test started (pause -> wait ${MOW_FLOW_WAIT_SECONDS}s -> resume -> wait ${MOW_FLOW_WAIT_SECONDS}s -> stop -> dock).`);
+
+      try {
+        await device.pauseMow();
+        console.log(`[${device.name}] mow flow: pause command sent`);
+
+        await sleep(waitMs);
+
+        await device.resumeMow();
+        console.log(`[${device.name}] mow flow: resume command sent`);
+
+        await sleep(waitMs);
+
+        await device.stopMow();
+        console.log(`[${device.name}] mow flow: stop command sent`);
+
+        await device.dock();
+        console.log(`[${device.name}] mow flow: dock command sent`);
+      } catch (error) {
+        console.error(`[${device.name}] mow flow test failed:`, error.message);
+      }
+    } else {
+      console.log("Mow flow test skipped (set API2_RUN_MOW_FLOW_TEST=1 to enable).");
     }
   }
 
